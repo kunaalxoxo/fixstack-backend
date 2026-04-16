@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/server.js",
-    "build": "tsc",
+    "build": "npm install && tsc",
     "dev": "ts-node-dev --respawn src/server.ts",
     "demo": "ts-node src/server.ts"
   },
