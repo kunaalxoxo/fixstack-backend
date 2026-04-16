@@ -18,10 +18,11 @@ export class PlannerAgent {
       return attempt === 1 ? '4.17.19' : '4.17.21';
     }
 
-    if (pkgName === 'axios') {
-      return '0.21.4';
-    }
+    if (pkgName === 'axios') return '0.21.4';
+    if (pkgName === 'express') return '4.18.2';
+    if (pkgName === 'minimist') return '1.2.8';
+    if (pkgName === 'node-fetch') return '2.6.7';
 
-    return version; // No change
+    return version; // No known patch — will be marked FAILED
   }
 }

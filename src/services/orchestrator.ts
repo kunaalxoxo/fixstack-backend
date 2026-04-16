@@ -5,6 +5,7 @@ import { ScannerAgent } from './scanner';
 import { LookupAgent } from './lookup';
 import { PlannerAgent } from './planner';
 import { Validator } from './validator';
+import { GitHubPRService } from './githubPR';
 
 export class WorkflowOrchestrator {
   private logger: Logger;
@@ -61,15 +62,25 @@ export class WorkflowOrchestrator {
             pkgName: dep.name,
             oldVersion: dep.version,
             newVersion: finalVersion,
-            status: success ? 'FIXED' : 'FAILED',
+            status: success && finalVersion !== dep.version ? 'FIXED' : 'FAILED',
             attempts: attempt > 2 ? 2 : attempt,
           });
         }
       }
 
-      // 4. Wrap up
       this.run.vulnerabilities = vulnerabilities;
       this.run.remediations = remediations;
+
+      // 4. Create PR if there are fixed remediations and repoUrl is available
+      if (this.run.input.repoUrl && remediations.some(r => r.status === 'FIXED')) {
+        const prResult = await GitHubPRService.createPR(this.run.input.repoUrl, remediations, this.run.id, this.logger);
+        if (prResult) {
+          this.run.prUrl = prResult.prUrl;
+          this.run.prBranch = prResult.prBranch;
+        }
+      }
+
+      // 5. Wrap up
       this.run.status = 'COMPLETED';
       this.run.endTime = new Date().toISOString();
 
