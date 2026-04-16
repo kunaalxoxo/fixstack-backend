@@ -8,6 +8,8 @@ export interface Run {
   input: DependencyInput;
   vulnerabilities: Vulnerability[];
   remediations: RemediationResult[];
+  prUrl?: string;
+  prBranch?: string;
 }
 
 export interface RunEvent {
@@ -23,6 +25,7 @@ export interface RunEvent {
 
 export interface DependencyInput {
   repoName: string;
+  repoUrl?: string;
   manifestType: 'package.json' | 'requirements.txt';
   dependencies: { name: string; version: string }[];
 }
