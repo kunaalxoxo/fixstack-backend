@@ -6,6 +6,8 @@ import { LookupAgent } from './lookup';
 import { PlannerAgent } from './planner';
 import { Validator } from './validator';
 import { GitHubPRService } from './githubPR';
+import axios from 'axios';
+import nodemailer from 'nodemailer';
 
 export class WorkflowOrchestrator {
   private logger: Logger;
@@ -27,19 +29,16 @@ export class WorkflowOrchestrator {
     await db.saveRun(this.run);
 
     try {
-      // 1. Scan
       const dependencies = await this.scanner.scan(this.run.input);
 
-      // 2. Lookup & Patch
       const vulnerabilities: Vulnerability[] = [];
       const remediations: RemediationResult[] = [];
 
       for (const dep of dependencies) {
-        const vulns = await this.lookup.lookup(dep.name, dep.version);
+        const vulns = await this.lookup.lookup(dep.name, dep.version, this.run.input.ecosystem);
         if (vulns.length > 0) {
           vulnerabilities.push(...vulns);
 
-          // 3. Retry Loop
           let attempt = 1;
           let success = false;
           let finalVersion = dep.version;
@@ -71,7 +70,6 @@ export class WorkflowOrchestrator {
       this.run.vulnerabilities = vulnerabilities;
       this.run.remediations = remediations;
 
-      // 4. Create PR if there are fixed remediations and repoUrl is available
       if (this.run.input.repoUrl && remediations.some(r => r.status === 'FIXED')) {
         const prResult = await GitHubPRService.createPR(this.run.input.repoUrl, remediations, this.run.id, this.logger);
         if (prResult) {
@@ -80,11 +78,14 @@ export class WorkflowOrchestrator {
         }
       }
 
-      // 5. Wrap up
       this.run.status = 'COMPLETED';
       this.run.endTime = new Date().toISOString();
 
       await this.logger.log('Remediation Output Agent', 'Finalizer', 'SUCCESS', `Workflow completed for ${this.run.input.repoName}. Total fixes: ${remediations.filter(r => r.status === 'FIXED').length}`);
+
+      if (vulnerabilities.length > 0) {
+        await this.sendAlerts();
+      }
 
     } catch (error: any) {
       this.run.status = 'FAILED';
@@ -92,5 +93,52 @@ export class WorkflowOrchestrator {
     }
 
     await db.saveRun(this.run);
+  }
+
+  private async sendAlerts() {
+    const webhookUrl = db.getSetting('webhookUrl');
+    const emailStr = db.getSetting('email');
+
+    const summary = {
+      repo: this.run.input.repoName,
+      runId: this.run.id,
+      vulnerabilities: this.run.vulnerabilities.length,
+      fixed: this.run.remediations.filter(r => r.status === 'FIXED').length,
+      prUrl: this.run.prUrl || 'None'
+    };
+
+    if (webhookUrl) {
+      try {
+        await axios.post(webhookUrl, summary);
+        await this.logger.log('Alert Agent', 'Webhook', 'INFO', 'Notifications sent via Webhook');
+      } catch (e: any) {
+        await this.logger.log('Alert Agent', 'Webhook', 'ERROR', `Failed to send webhook: ${e.message}`);
+      }
+    }
+
+    if (emailStr) {
+      try {
+        const testAccount = await nodemailer.createTestAccount();
+        const transporter = nodemailer.createTransport({
+          host: "smtp.ethereal.email",
+          port: 587,
+          secure: false,
+          auth: {
+            user: testAccount.user,
+            pass: testAccount.pass,
+          },
+        });
+
+        await transporter.sendMail({
+          from: '"DepShield" <alerts@depshield.com>',
+          to: emailStr,
+          subject: `DepShield Scan Completed: ${summary.repo}`,
+          text: JSON.stringify(summary, null, 2)
+        });
+        await this.logger.log('Alert Agent', 'Email', 'INFO', `Notifications sent to ${emailStr}`);
+      } catch (e: any) {
+        await this.logger.log('Alert Agent', 'Email', 'ERROR', `Failed to send email: ${e.message}`);
+      }
+    }
   }
 }

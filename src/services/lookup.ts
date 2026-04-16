@@ -5,19 +5,21 @@ import { Logger } from './logger';
 export class LookupAgent {
   constructor(private logger: Logger) {}
 
-  async lookup(pkgName: string, version: string): Promise<Vulnerability[]> {
+  async lookup(pkgName: string, version: string, ecosystem: string = 'npm'): Promise<Vulnerability[]> {
     await this.logger.log(
       'CVE Lookup Agent',
       'OSV.dev API',
       'INFO',
-      `Looking up vulnerabilities for ${pkgName}@${version}`
+      `Looking up vulnerabilities for ${pkgName}@${version} (${ecosystem})`
     );
 
     try {
-      const response = await axios.post('https://api.osv.dev/v1/query', {
-        version: version,
-        package: { name: pkgName, ecosystem: 'npm' }
-      });
+      const payload: any = { package: { name: pkgName, ecosystem } };
+      if (version && version !== 'unknown') {
+        payload.version = version;
+      }
+
+      const response = await axios.post('https://api.osv.dev/v1/query', payload);
 
       if (response.data && response.data.vulns && response.data.vulns.length > 0) {
         return response.data.vulns.map((vuln: any) => ({
@@ -26,7 +28,8 @@ export class LookupAgent {
           pkgVersion: version,
           cveId: vuln.aliases?.find((a: string) => a.startsWith('CVE')) || vuln.id,
           severity: vuln.database_specific?.severity || 'HIGH',
-          description: vuln.summary || vuln.details || 'Vulnerability found via OSV.dev'
+          description: vuln.summary || vuln.details || 'Vulnerability found via OSV.dev',
+          ecosystem
         }));
       }
     } catch (error: any) {
@@ -38,7 +41,6 @@ export class LookupAgent {
       );
     }
 
-    // Fallback mock for demo reliability
     if (pkgName === 'lodash' && version === '4.17.15') {
       return [{
         id: 'GHSA-v88g-c8rk-3gr7',
@@ -46,7 +48,8 @@ export class LookupAgent {
         pkgVersion: version,
         cveId: 'CVE-2019-10744',
         severity: 'HIGH',
-        description: 'Prototype pollution vulnerability in lodash defaultsDeep'
+        description: 'Prototype pollution vulnerability in lodash defaultsDeep',
+        ecosystem: 'npm'
       }];
     }
 
@@ -57,7 +60,8 @@ export class LookupAgent {
         pkgVersion: version,
         cveId: 'CVE-2021-3749',
         severity: 'MEDIUM',
-        description: 'Regular Expression Denial of Service (ReDoS) in axios'
+        description: 'Regular Expression Denial of Service (ReDoS) in axios',
+        ecosystem: 'npm'
       }];
     }
 

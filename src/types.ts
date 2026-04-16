@@ -26,7 +26,8 @@ export interface RunEvent {
 export interface DependencyInput {
   repoName: string;
   repoUrl?: string;
-  manifestType: 'package.json' | 'requirements.txt';
+  manifestType: 'package.json' | 'requirements.txt' | 'pom.xml' | 'go.mod' | 'yarn.lock';
+  ecosystem: 'npm' | 'PyPI' | 'Maven' | 'Go';
   dependencies: { name: string; version: string }[];
 }
 
@@ -37,6 +38,7 @@ export interface Vulnerability {
   cveId: string;
   severity: string;
   description: string;
+  ecosystem?: string;
 }
 
 export interface RemediationResult {
@@ -45,4 +47,17 @@ export interface RemediationResult {
   newVersion: string;
   status: 'FIXED' | 'FAILED';
   attempts: number;
+}
+
+export interface PatchAttempt {
+  pkgName: string;
+  vulnerableVersion: string;
+  suggestedVersion: string;
+  attemptNumber: number;
+}
+
+export interface ValidationResult {
+  success: boolean;
+  message: string;
+  logs: string[];
 }
