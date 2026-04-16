@@ -7,8 +7,7 @@
     "start": "node dist/server.js",
     "build": "tsc",
     "dev": "ts-node-dev --respawn src/server.ts",
-    "demo": "ts-node src/server.ts",
-    "postinstall": "npm run build"
+    "demo": "ts-node src/server.ts"
   },
   "dependencies": {
     "axios": "^1.6.2",
