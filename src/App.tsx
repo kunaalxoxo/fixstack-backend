@@ -127,13 +127,8 @@ const TimelineEventCard = ({ event, run }: { event: RunEvent, run: Run }) => {
       <div className={contentClass}>
         {isPRCreated ? (
           <>
-            <div className="absolute inset-0 opacity-20 pointer-events-none flex justify-around">
-              <span className="text-4xl animate-bounce">🎉</span>
-              <span className="text-4xl animate-pulse delay-75">✨</span>
-              <span className="text-4xl animate-bounce delay-150">🚀</span>
-            </div>
             <h3 className="text-[var(--success)] text-2xl font-bold mb-4 flex justify-center items-center gap-2 relative z-10">
-              🎉 Pull Request Created
+              Pull Request Created
             </h3>
             <p className="text-[var(--text-primary)] mb-6 relative z-10">{event.message}</p>
             {run.prUrl && (
@@ -210,7 +205,10 @@ export default function App() {
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
   const [scheduleRepo, setScheduleRepo] = useState('');
-  const [cronExp, setCronExp] = useState('0 0 * * *');
+  const [scheduleTime, setScheduleTime] = useState('00:00');
+  const [scheduleDayOfMonth, setScheduleDayOfMonth] = useState('*');
+  const [scheduleMonth, setScheduleMonth] = useState('*');
+  const [scheduleWeekday, setScheduleWeekday] = useState('*');
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -402,19 +400,40 @@ export default function App() {
 
   useEffect(() => { return () => stopPolling(); }, []);
 
+  const getScheduleHourMinute = () => {
+    const [hour = '00', minute = '00'] = scheduleTime.includes(':') ? scheduleTime.split(':') : ['00', '00'];
+    return { hour, minute };
+  };
+
   const saveSchedule = async () => {
     if (!validateUrl(scheduleRepo)) {
       addToast('Invalid GitHub URL', 'error');
       return;
     }
+    const { hour, minute } = getScheduleHourMinute();
+    const cronExpression = `${minute} ${hour} ${scheduleDayOfMonth} ${scheduleMonth} ${scheduleWeekday}`;
     try {
-      await fixstackApi.addSchedule(scheduleRepo, cronExp);
+      await fixstackApi.addSchedule(scheduleRepo, cronExpression);
       setShowScheduleModal(false);
       setScheduleRepo('');
+      setScheduleTime('00:00');
+      setScheduleDayOfMonth('*');
+      setScheduleMonth('*');
+      setScheduleWeekday('*');
       fetchData();
       addToast('Schedule saved', 'success');
     } catch (e) {
       addToast('Failed to save schedule', 'error');
+    }
+  };
+
+  const deleteScan = async (runId: string) => {
+    try {
+      await fixstackApi.deleteScan(runId);
+      setHistory(prev => prev.filter(scan => scan.runId !== runId));
+      addToast('Completed scan deleted', 'info');
+    } catch (e) {
+      addToast('Failed to delete scan', 'error');
     }
   };
 
@@ -525,12 +544,7 @@ export default function App() {
     return (
       <div className="min-h-screen text-[var(--text-primary)] bg-[radial-gradient(90%_70%_at_50%_0%,rgba(99,102,241,0.22),transparent_60%),var(--bg-base)] flex items-center justify-center p-4">
         <div className="w-full max-w-xl border border-[var(--border-default)] rounded-3xl bg-[color:rgba(17,17,24,0.85)] backdrop-blur-xl shadow-2xl p-8 md:p-10 animate-fade-in">
-          <div className="flex items-center justify-center mb-6">
-            <div className="w-16 h-16 rounded-2xl bg-[color:rgba(99,102,241,0.15)] border border-[var(--border-default)] flex items-center justify-center">
-              <Shield className="text-[var(--accent-primary)]" size={34} />
-            </div>
-          </div>
-          <h1 className="text-4xl font-extrabold text-center mb-2 gradient-text">FixStack</h1>
+          <h1 className="text-4xl font-extrabold text-center mb-2 gradient-text flex items-center justify-center gap-2"><Shield className="text-[var(--accent-primary)]" size={30} /> FixStack</h1>
           <p className="text-[var(--text-secondary)] text-center mb-8">Autonomous dependency security for modern teams.</p>
           <form onSubmit={handleGithubLogin} className="space-y-5">
             <div className="relative">
@@ -556,7 +570,17 @@ export default function App() {
             <span className="px-3 py-1 rounded-full text-xs border border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--text-secondary)]">AI Context</span>
             <span className="px-3 py-1 rounded-full text-xs border border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--text-secondary)]">Auto PRs</span>
           </div>
-          <p className="mt-5 text-xs text-center text-[var(--text-muted)]">Use a PAT with <span className="font-mono text-[var(--text-secondary)]">repo</span> scope.</p>
+          <p className="mt-5 text-xs text-center text-[var(--text-muted)]">
+            Use a PAT with <span className="font-mono text-[var(--text-secondary)]">repo</span> scope.{' '}
+            <a
+              href="https://github.com/settings/personal-access-tokens/new"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-indigo-300 hover:text-indigo-200 underline"
+            >
+              Generate one here
+            </a>.
+          </p>
         </div>
 
         <div className="fixed top-6 right-6 z-[70] flex flex-col gap-2">
@@ -575,7 +599,7 @@ export default function App() {
     <div className="min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)]">
       <div className="md:hidden sticky top-0 z-40 h-14 px-4 border-b border-[var(--border-subtle)] bg-[color:rgba(10,10,15,0.9)] backdrop-blur-xl flex items-center justify-between">
         <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)]"><Menu size={18} /></button>
-        <button onClick={() => { setCurrentRun(null); setCurrentTab('dashboard'); }} className="font-semibold gradient-text">FixStack</button>
+        <button onClick={() => { setCurrentRun(null); setCurrentTab('dashboard'); }} className="font-semibold gradient-text flex items-center gap-2"><Shield size={16} className="text-[var(--accent-primary)]" /> FixStack</button>
         <button onClick={handleLogout} className="text-[var(--text-secondary)]"><LogOut size={18} /></button>
       </div>
 
@@ -624,7 +648,7 @@ export default function App() {
           !currentRun ? (
             <div className="space-y-8">
               <section className="rounded-3xl border border-[var(--border-default)] bg-[radial-gradient(90%_100%_at_10%_0%,rgba(99,102,241,0.2),transparent_55%),var(--bg-elevated)] p-7 md:p-10">
-                <h1 className="text-4xl md:text-5xl font-extrabold leading-tight max-w-3xl">Autonomous security triage for every dependency.</h1>
+                <h1 className="text-4xl md:text-5xl font-extrabold leading-tight max-w-3xl">See every dependency risk in real time, prioritize what matters, and ship fixes confidently.</h1>
                 <p className="mt-3 text-[var(--text-secondary)] max-w-2xl">Scan repos, analyze exploitability with AI context, and ship remediation PRs with a single action.</p>
                 <div className="mt-6 flex flex-wrap gap-2">
                   <span className="px-3 py-1 rounded-full text-xs border border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--text-secondary)] flex items-center gap-1"><Search size={12} /> CVE scanner</span>
@@ -976,6 +1000,18 @@ export default function App() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
+                      {scan.status === 'COMPLETED' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteScan(scan.runId);
+                          }}
+                          className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] hover:border-red-700 hover:text-red-200 px-3 py-1.5 text-xs font-semibold flex items-center gap-1"
+                          title="Delete completed scan"
+                        >
+                          <Trash2 size={12} /> Delete
+                        </button>
+                      )}
                       {scan.prUrl && (
                         <span className="bg-green-900/30 text-green-300 border border-green-700 px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5">
                           <CheckCircle2 size={12} /> PR Opened
@@ -1022,13 +1058,37 @@ export default function App() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">Run Frequency</label>
-                      <select value={cronExp} onChange={e => setCronExp(e.target.value)} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]">
-                        <option value="0 0 * * *">Every day at midnight (0 0 * * *)</option>
-                        <option value="0 0 * * 0">Weekly on Sunday (0 0 * * 0)</option>
-                        <option value="0 0 * * 1">Every Monday (0 0 * * 1)</option>
-                        <option value="0 * * * *">Every hour (0 * * * *)</option>
-                      </select>
+                      <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">Schedule Configuration</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-[var(--text-secondary)] mb-1">Time</label>
+                          <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-[var(--text-secondary)] mb-1">Weekday</label>
+                          <select value={scheduleWeekday} onChange={e => setScheduleWeekday(e.target.value)} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]">
+                            <option value="*">Any</option>
+                            <option value="0">Sunday</option>
+                            <option value="1">Monday</option>
+                            <option value="2">Tuesday</option>
+                            <option value="3">Wednesday</option>
+                            <option value="4">Thursday</option>
+                            <option value="5">Friday</option>
+                            <option value="6">Saturday</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-[var(--text-secondary)] mb-1">Date (day of month)</label>
+                          <input type="text" value={scheduleDayOfMonth} onChange={e => setScheduleDayOfMonth(e.target.value || '*')} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" placeholder="* or 1-31" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-[var(--text-secondary)] mb-1">Month</label>
+                          <input type="text" value={scheduleMonth} onChange={e => setScheduleMonth(e.target.value || '*')} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" placeholder="* or 1-12" />
+                        </div>
+                      </div>
+                      <p className="mt-2 text-xs text-[var(--text-secondary)] font-mono">
+                        Cron preview: {getScheduleHourMinute().minute} {getScheduleHourMinute().hour} {scheduleDayOfMonth} {scheduleMonth} {scheduleWeekday}
+                      </p>
                     </div>
                     <div className="pt-2 flex gap-3">
                       <button onClick={() => setShowScheduleModal(false)} className="flex-1 rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] py-2.5">Cancel</button>

@@ -221,6 +221,12 @@ app.get('/api/scans', (_req: Request, res: Response) => {
   })));
 });
 
+app.delete('/api/scans/:runId', (req: Request, res: Response) => {
+  const runId = decodeURIComponent(req.params.runId);
+  db.deleteScan(runId);
+  res.json({ message: 'Scan deleted' });
+});
+
 // Settings
 app.post('/api/settings', (req: Request, res: Response) => {
   if (req.body.webhookUrl !== undefined) db.saveSetting('webhookUrl', req.body.webhookUrl);

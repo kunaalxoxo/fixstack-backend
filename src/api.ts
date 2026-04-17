@@ -21,6 +21,7 @@ export const fixstackApi = {
   getAllRuns: () => api.get<Run[]>('/api/runs'),
 
   getScans: () => api.get('/api/scans'),
+  deleteScan: (runId: string) => api.delete(`/api/scans/${encodeURIComponent(runId)}`),
 
   getSchedules: () => api.get('/api/schedules'),
   addSchedule: (repoUrl: string, cronExpression: string) => api.post('/api/schedules', { repoUrl, cronExpression }),

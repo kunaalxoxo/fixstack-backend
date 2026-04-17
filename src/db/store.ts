@@ -86,6 +86,15 @@ class Store {
     );
   }
 
+  deleteScan(id: string): void {
+    const db = readDb();
+    delete db.scans[id];
+    delete db.events[id];
+    writeDb(db);
+    this.runs.delete(id);
+    this.events.delete(id);
+  }
+
   getSchedules(): { repo: string; cronExpression: string }[] {
     return Object.values(readDb().schedules);
   }
