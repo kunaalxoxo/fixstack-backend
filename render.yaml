@@ -4,12 +4,10 @@ services:
     env: node
     plan: free
     buildCommand: npm install
-    startCommand: node -r ts-node/register src/server.ts
+    startCommand: node -r ts-node/register/transpile-only src/server.ts
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
-      - key: TS_NODE_TRANSPILE_ONLY
-        value: "true"
     healthCheckPath: /health
