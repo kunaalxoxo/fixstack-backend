@@ -3,6 +3,34 @@ import { RemediationResult } from '../types';
 import { Logger } from './logger';
 import { db } from '../db/store';
 
+function parseGitHubRepo(repoUrl: string): { owner: string; repo: string } {
+  try {
+    // Supports:
+    // - https://github.com/owner/repo
+    // - https://github.com/owner/repo.git
+    // - git@github.com:owner/repo.git
+    // - ssh://git@github.com/owner/repo.git
+    let normalized = repoUrl.trim();
+    if (normalized.startsWith('git@github.com:')) {
+      normalized = normalized.replace('git@github.com:', 'https://github.com/');
+    }
+
+    const urlObj = new URL(normalized);
+    const parts = urlObj.pathname.split('/').filter(Boolean);
+    const owner = parts[0];
+    const rawRepo = parts[1] || '';
+    const repo = rawRepo.replace(/\.git$/i, '');
+
+    if (!owner || !repo) {
+      throw new Error('Invalid repo URL');
+    }
+
+    return { owner, repo };
+  } catch {
+    throw new Error('Invalid repo URL');
+  }
+}
+
 export class GitHubPRService {
   static async createPR(
     repoUrl: string,
@@ -17,16 +45,12 @@ export class GitHubPRService {
     }
 
     try {
-      const urlObj = new URL(repoUrl);
-      const parts = urlObj.pathname.split('/').filter(Boolean);
-      const owner = parts[0];
-      const repo = parts[1];
-
-      if (!owner || !repo) throw new Error('Invalid repo URL');
+      const { owner, repo } = parseGitHubRepo(repoUrl);
 
       const headers = {
         'Authorization': `Bearer ${githubToken}`,
-        'Accept': 'application/vnd.github.v3+json'
+        'Accept': 'application/vnd.github.v3+json',
+        'X-GitHub-Api-Version': '2022-11-28',
       };
 
       const shortRunId = runId.substring(0, 8);
@@ -106,7 +130,7 @@ export class GitHubPRService {
         {
           title,
           body,
-          head: newBranch,
+          head: `${owner}:${newBranch}`,
           base: defaultBranch
         },
         { headers }
@@ -118,7 +142,16 @@ export class GitHubPRService {
       return { prUrl, prBranch: newBranch };
 
     } catch (error: any) {
-      await logger.log('GitHub PR Agent', 'Error', 'ERROR', `Failed to create PR: ${error.message}`);
+      const status = error?.response?.status;
+      const details = error?.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message;
+      await logger.log(
+        'GitHub PR Agent',
+        'Error',
+        'ERROR',
+        `Failed to create PR${status ? ` (HTTP ${status})` : ''}: ${details}`
+      );
       return null;
     }
   }
