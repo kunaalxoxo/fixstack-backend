@@ -66,6 +66,13 @@ const AnimatedNumber = ({ value }: { value: number }) => {
   return <span>{displayValue}</span>;
 };
 
+type GithubRepo = {
+  id: number;
+  full_name: string;
+  html_url: string;
+  private: boolean;
+};
+
 const getAgentAvatar = (name: string) => {
   const map: Record<string, { initials: string, color: string }> = {
     'Repo Scanner': { initials: 'RS', color: 'bg-blue-600' },
@@ -184,7 +191,8 @@ const TimelineEventCard = ({ event, run }: { event: RunEvent, run: Run }) => {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [githubToken, setGithubToken] = useState('');
-  const [githubRepos, setGithubRepos] = useState<{ id: number; full_name: string; html_url: string; private: boolean }[]>([]);
+  const [githubRepos, setGithubRepos] = useState<GithubRepo[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState('');
   const [isRepoLoading, setIsRepoLoading] = useState(false);
   
   const [currentTab, setCurrentTab] = useState<'dashboard' | 'history' | 'schedules' | 'settings'>('dashboard');
@@ -226,16 +234,34 @@ export default function App() {
   }, []);
 
   const fetchGithubRepos = async (token: string) => {
-    const response = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-      },
-    });
-    if (!response.ok) {
-      throw new Error(response.status === 401 ? 'Invalid GitHub token' : 'Failed to fetch repositories');
+    const repos: GithubRepo[] = [];
+    let page = 1;
+    let hasMore = true;
+    try {
+      while (hasMore) {
+        const response = await fetch(`https://api.github.com/user/repos?per_page=100&sort=updated&page=${page}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+          },
+        });
+        if (!response.ok) {
+          throw new Error(
+            response.status === 401
+              ? 'Invalid GitHub token'
+              : `Failed to fetch repositories (HTTP ${response.status})`
+          );
+        }
+        const pageRepos = await response.json();
+        repos.push(...pageRepos);
+        hasMore = pageRepos.length === 100;
+        page += 1;
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      throw new Error('Network error while fetching repositories');
     }
-    return response.json();
+    return repos;
   };
 
   const loginWithGithubToken = async (token: string) => {
@@ -247,11 +273,13 @@ export default function App() {
       setIsAuthenticated(true);
       fetchData();
       addToast('GitHub connected', 'success');
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Failed to connect GitHub';
       setIsAuthenticated(false);
       setGithubRepos([]);
+      setSelectedRepo('');
       localStorage.removeItem('githubToken');
-      addToast(e.message || 'Failed to connect GitHub', 'error');
+      addToast(message, 'error');
     } finally {
       setIsRepoLoading(false);
     }
@@ -271,6 +299,7 @@ export default function App() {
     setIsAuthenticated(false);
     setGithubToken('');
     setGithubRepos([]);
+    setSelectedRepo('');
   };
 
   useEffect(() => {
@@ -591,13 +620,14 @@ export default function App() {
                       <>
                         <select
                           className="bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 w-full text-sm"
-                          defaultValue=""
+                          value={selectedRepo}
                           onChange={(e) => {
-                            const selectedRepo = e.target.value;
-                            if (!selectedRepo) return;
-                            setRepoUrl(selectedRepo);
+                            const selectedRepoUrl = e.target.value;
+                            setSelectedRepo(selectedRepoUrl);
+                            if (!selectedRepoUrl) return;
+                            setRepoUrl(selectedRepoUrl);
                             setError(null);
-                            startScan(false, selectedRepo);
+                            startScan(false, selectedRepoUrl);
                           }}
                           disabled={isLoading}
                         >
