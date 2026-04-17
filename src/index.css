@@ -1,11 +1,30 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
+    --bg-base: #0a0a0f;
+    --bg-elevated: #111118;
+    --bg-raised: #17171f;
+    --bg-overlay: #1e1e28;
+    --bg-highlight: #252532;
+    --border-subtle: #1f1f2e;
+    --border-default: #2a2a3d;
+    --border-focus: #4f46e5;
+    --text-primary: #f0f0ff;
+    --text-secondary: #9898b8;
+    --text-muted: #55556b;
+    --accent-primary: #6366f1;
+    --accent-glow: rgba(99,102,241,0.15);
+    --severity-critical: #ef4444;
+    --severity-high: #f97316;
+    --severity-medium: #eab308;
+    --severity-low: #3b82f6;
+    --severity-info: #8b5cf6;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --error: #ef4444;
     color-scheme: dark;
   }
 
@@ -14,9 +33,15 @@
   }
 
   body {
-    @apply bg-slate-900 text-slate-100;
-    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     letter-spacing: 0.01em;
+  }
+
+  code,
+  .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   }
 
   button,
@@ -32,15 +57,15 @@
   select:focus-visible,
   textarea:focus-visible,
   a:focus-visible {
-    outline: 2px solid rgb(96 165 250 / 0.9);
+    outline: 2px solid var(--border-focus);
     outline-offset: 2px;
   }
 }
 
-@keyframes slideIn {
+@keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -49,6 +74,34 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.28s ease-out;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.gradient-text {
+  background: linear-gradient(90deg, #818cf8 0%, #60a5fa 45%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
