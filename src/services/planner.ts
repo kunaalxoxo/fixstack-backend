@@ -8,12 +8,17 @@ const KNOWN_PATCHES: Record<string, string[]> = {
   express: ['4.18.2'],
   minimist: ['1.2.8'],
   'node-fetch': ['2.6.7'],
+  flask: ['3.1.2'],
+  requests: ['2.32.3'],
+  gunicorn: ['22.0.0'],
 };
 
 export class PlannerAgent {
   constructor(private logger: Logger) {}
 
   async suggestPatch(pkgName: string, version: string, attempt: number): Promise<string> {
+    const normalizedPkgName = pkgName.trim().toLowerCase();
+
     await this.logger.log(
       'Patch Planner',
       'Groq LLM',
@@ -23,7 +28,7 @@ export class PlannerAgent {
 
     // Try Groq first
     const groqSuggestion = await this.askGroq(pkgName, version, attempt);
-    if (groqSuggestion) {
+    if (groqSuggestion && groqSuggestion !== version) {
       await this.logger.log(
         'Patch Planner',
         'Groq LLM',
@@ -34,10 +39,14 @@ export class PlannerAgent {
     }
 
     // Fallback to static map
-    const patches = KNOWN_PATCHES[pkgName];
+    const patches = KNOWN_PATCHES[normalizedPkgName];
     if (patches) {
       const idx = Math.min(attempt - 1, patches.length - 1);
-      return patches[idx];
+      const candidate = patches[idx];
+      if (candidate !== version) return candidate;
+
+      const alternative = patches.find(v => v !== version);
+      if (alternative) return alternative;
     }
 
     return version; // No known patch — will be marked FAILED
