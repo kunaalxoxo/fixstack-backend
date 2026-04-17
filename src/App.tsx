@@ -330,6 +330,12 @@ export default function App() {
   };
 
   const validateUrl = (url: string) => url && url.startsWith('https://github.com/');
+  const isWildcardOrInRange = (value: string, min: number, max: number) => {
+    if (value === '*') return true;
+    if (!/^\d+$/.test(value)) return false;
+    const num = Number(value);
+    return num >= min && num <= max;
+  };
 
   const startScan = async (isDemo = false, selectedRepoUrl?: string) => {
     const finalRepoUrl = selectedRepoUrl || repoUrl;
@@ -407,17 +413,11 @@ export default function App() {
     }
     const dayOfMonth = scheduleDayOfMonth.trim() || '*';
     const month = scheduleMonth.trim() || '*';
-    const isNumericOrWildcard = (value: string, min: number, max: number) => {
-      if (value === '*') return true;
-      if (!/^\d+$/.test(value)) return false;
-      const num = Number(value);
-      return num >= min && num <= max;
-    };
-    if (!isNumericOrWildcard(dayOfMonth, 1, 31)) {
+    if (!isWildcardOrInRange(dayOfMonth, 1, 31)) {
       addToast('Day of month must be * or a value between 1 and 31', 'error');
       return;
     }
-    if (!isNumericOrWildcard(month, 1, 12)) {
+    if (!isWildcardOrInRange(month, 1, 12)) {
       addToast('Month must be * or a value between 1 and 12', 'error');
       return;
     }
@@ -660,7 +660,7 @@ export default function App() {
           !currentRun ? (
             <div className="space-y-8">
               <section className="rounded-3xl border border-[var(--border-default)] bg-[radial-gradient(90%_100%_at_10%_0%,rgba(99,102,241,0.2),transparent_55%),var(--bg-elevated)] p-7 md:p-10">
-                <h1 className="text-4xl md:text-5xl font-extrabold leading-tight max-w-3xl">See every dependency risk in real time, prioritize what matters, and ship fixes confidently.</h1>
+                <h1 className="text-4xl md:text-5xl font-extrabold leading-tight max-w-3xl">See every dependency risk in real-time, prioritize what matters, and ship fixes confidently.</h1>
                 <p className="mt-3 text-[var(--text-secondary)] max-w-2xl">Scan repos, analyze exploitability with AI context, and ship remediation PRs with a single action.</p>
                 <div className="mt-6 flex flex-wrap gap-2">
                   <span className="px-3 py-1 rounded-full text-xs border border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--text-secondary)] flex items-center gap-1"><Search size={12} /> CVE scanner</span>
