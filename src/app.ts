@@ -223,6 +223,8 @@ app.get('/api/scans', (_req: Request, res: Response) => {
 
 app.delete('/api/scans/:runId', (req: Request, res: Response) => {
   const runId = decodeURIComponent(req.params.runId);
+  const exists = db.getScans().some(run => run.id === runId);
+  if (!exists) return res.status(404).json({ error: 'Scan not found' });
   db.deleteScan(runId);
   res.json({ message: 'Scan deleted' });
 });

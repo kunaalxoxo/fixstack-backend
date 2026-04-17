@@ -400,18 +400,29 @@ export default function App() {
 
   useEffect(() => { return () => stopPolling(); }, []);
 
-  const getScheduleHourMinute = () => {
-    const [hour = '00', minute = '00'] = scheduleTime.includes(':') ? scheduleTime.split(':') : ['00', '00'];
-    return { hour, minute };
-  };
-
   const saveSchedule = async () => {
     if (!validateUrl(scheduleRepo)) {
       addToast('Invalid GitHub URL', 'error');
       return;
     }
-    const { hour, minute } = getScheduleHourMinute();
-    const cronExpression = `${minute} ${hour} ${scheduleDayOfMonth} ${scheduleMonth} ${scheduleWeekday}`;
+    const dayOfMonth = scheduleDayOfMonth.trim() || '*';
+    const month = scheduleMonth.trim() || '*';
+    const isNumericOrWildcard = (value: string, min: number, max: number) => {
+      if (value === '*') return true;
+      if (!/^\d+$/.test(value)) return false;
+      const num = Number(value);
+      return num >= min && num <= max;
+    };
+    if (!isNumericOrWildcard(dayOfMonth, 1, 31)) {
+      addToast('Day of month must be * or a value between 1 and 31', 'error');
+      return;
+    }
+    if (!isNumericOrWildcard(month, 1, 12)) {
+      addToast('Month must be * or a value between 1 and 12', 'error');
+      return;
+    }
+    const [hour = '00', minute = '00'] = scheduleTime.split(':');
+    const cronExpression = `${minute} ${hour} ${dayOfMonth} ${month} ${scheduleWeekday}`;
     try {
       await fixstackApi.addSchedule(scheduleRepo, cronExpression);
       setShowScheduleModal(false);
@@ -539,7 +550,7 @@ export default function App() {
     { id: 'schedules', icon: Calendar, label: 'Schedules' },
     { id: 'settings', icon: SettingsIcon, label: 'Settings' }
   ] as const;
-  const scheduleParts = getScheduleHourMinute();
+  const [previewHour = '00', previewMinute = '00'] = scheduleTime.split(':');
 
   if (!isAuthenticated) {
     return (
@@ -1080,15 +1091,15 @@ export default function App() {
                         </div>
                         <div>
                           <label className="block text-xs text-[var(--text-secondary)] mb-1">Day of Month</label>
-                          <input type="text" value={scheduleDayOfMonth} onChange={e => setScheduleDayOfMonth(e.target.value || '*')} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" placeholder="* or 1-31" />
+                          <input type="text" inputMode="numeric" value={scheduleDayOfMonth} onChange={e => setScheduleDayOfMonth(e.target.value || '*')} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" placeholder="* or 1-31" />
                         </div>
                         <div>
                           <label className="block text-xs text-[var(--text-secondary)] mb-1">Month</label>
-                          <input type="text" value={scheduleMonth} onChange={e => setScheduleMonth(e.target.value || '*')} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" placeholder="* or 1-12" />
+                          <input type="text" inputMode="numeric" value={scheduleMonth} onChange={e => setScheduleMonth(e.target.value || '*')} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" placeholder="* or 1-12" />
                         </div>
                       </div>
                       <p className="mt-2 text-xs text-[var(--text-secondary)] font-mono">
-                        Cron preview: {scheduleParts.minute} {scheduleParts.hour} {scheduleDayOfMonth} {scheduleMonth} {scheduleWeekday}
+                        Cron preview: {previewMinute} {previewHour} {scheduleDayOfMonth} {scheduleMonth} {scheduleWeekday}
                       </p>
                     </div>
                     <div className="pt-2 flex gap-3">
