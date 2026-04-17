@@ -110,7 +110,7 @@ const TimelineEventCard = ({ event, run }: { event: RunEvent, run: Run }) => {
   } else if (isRetrySuccess) {
     contentClass += "bg-green-950/40 border-green-900 border-l-4 border-l-green-500";
   } else if (isPRCreated) {
-    contentClass += "bg-gradient-to-r from-green-900/60 to-emerald-900/60 border-green-500 border-2 text-center py-8 relative overflow-hidden";
+    contentClass += "bg-emerald-950/40 border-emerald-700 border text-center py-8 relative overflow-hidden";
   } else {
     contentClass += "bg-slate-800/40 border-slate-700 border-l-4 ";
     if (event.status === 'INFO') contentClass += "border-l-blue-500";
@@ -510,35 +510,28 @@ export default function App() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute inset-0 z-0 opacity-20">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
-          <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
-          <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-cyan-600 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
-        </div>
-
-        <div className="bg-slate-800/80 backdrop-blur-xl p-10 rounded-2xl border border-slate-700 shadow-2xl max-w-md w-full text-center relative z-10 transform transition-all">
+      <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-4">
+        <div className="bg-slate-800 p-10 rounded-2xl border border-slate-700 shadow-xl max-w-md w-full text-center transition-colors">
           <div className="flex justify-center mb-6">
             <div className="relative">
               <Github size={72} className="text-blue-500 relative z-10" />
-              <div className="absolute inset-0 bg-blue-500 blur-xl opacity-50 z-0 animate-pulse"></div>
+              <div className="absolute inset-0 bg-blue-500/20 z-0"></div>
             </div>
           </div>
-          <h1 className="text-4xl font-extrabold mb-2 bg-gradient-to-r from-blue-400 via-cyan-400 to-purple-500 text-transparent bg-clip-text">FixStack</h1>
+          <h1 className="text-4xl font-extrabold mb-2 text-white">FixStack</h1>
           <p className="text-slate-400 font-medium tracking-wide uppercase text-sm mb-8">Login with GitHub to continue</p>
           <form onSubmit={handleGithubLogin} className="space-y-6">
-            <div className="relative group">
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg blur opacity-30 group-focus-within:opacity-100 transition duration-500"></div>
+            <div className="relative">
               <input 
                 type="password" 
                 value={githubToken} 
                 onChange={e => setGithubToken(e.target.value)} 
                 placeholder="GitHub Personal Access Token" 
-                className="relative w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-4 text-center focus:outline-none text-white shadow-inner font-mono text-sm" 
+                className="relative w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-4 text-center focus:outline-none focus:border-blue-500 text-white font-mono text-sm transition-colors" 
                 autoFocus 
               />
             </div>
-            <button type="submit" disabled={isRepoLoading} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-4 px-4 rounded-lg transition-all shadow-[0_0_20px_rgba(37,99,235,0.5)] hover:shadow-[0_0_30px_rgba(37,99,235,0.8)]">
+            <button type="submit" disabled={isRepoLoading} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-4 px-4 rounded-lg transition-colors">
               {isRepoLoading ? 'Connecting...' : 'Login with GitHub'}
             </button>
           </form>
@@ -562,7 +555,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans">
       {/* Navbar */}
-      <nav className={`bg-slate-800 border-b border-slate-700 sticky top-0 z-40 transition-all ${duration > 0 ? 'shadow-[0_4px_30px_rgba(59,130,246,0.15)] border-b-blue-900' : ''}`}>
+      <nav className={`bg-slate-800 border-b border-slate-700 sticky top-0 z-40 transition-colors ${duration > 0 ? 'shadow-md border-b-blue-900' : ''}`}>
         <div className="max-w-6xl mx-auto px-4 flex justify-between items-center h-16">
           <div className="flex items-center gap-2 font-bold text-2xl cursor-pointer" onClick={() => {setCurrentRun(null); setCurrentTab('dashboard');}}>
             <Shield className="text-blue-500" /> <span className="text-white">Fix</span><span className="text-blue-400">Stack</span>
@@ -602,7 +595,7 @@ export default function App() {
             <div className="text-center py-12">
               <h1 className="text-5xl md:text-6xl font-extrabold mb-4 flex flex-col items-center justify-center gap-2">
                 <span className="text-white">Autonomous Security</span>
-                <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 text-transparent bg-clip-text animate-gradient-x">For Every Dependency</span>
+                <span className="text-blue-300">For Every Dependency</span>
               </h1>
               
               <div className="flex justify-center gap-4 my-8">
@@ -672,7 +665,7 @@ export default function App() {
                      { step: 4, title: 'Auto-PR', icon: Github }
                    ].map((s, i) => (
                      <div key={i} className="relative z-10 flex flex-col items-center">
-                       <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-blue-500 flex items-center justify-center mb-3 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+                       <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-blue-500 flex items-center justify-center mb-3">
                          <s.icon size={20} className="text-blue-400" />
                        </div>
                        <div className="font-bold text-slate-200">{s.title}</div>
@@ -711,7 +704,7 @@ export default function App() {
                   <span className={`px-4 py-2 rounded-lg text-sm font-bold uppercase shadow-inner ${
                     currentRun.status === 'COMPLETED' ? 'bg-green-900/80 text-green-400 border border-green-700' :
                     currentRun.status === 'FAILED' ? 'bg-red-900/80 text-red-400 border border-red-700' :
-                    currentRun.status === 'RUNNING' ? 'bg-blue-900/80 text-blue-400 border border-blue-700 shadow-[0_0_10px_rgba(59,130,246,0.5)]' :
+                    currentRun.status === 'RUNNING' ? 'bg-blue-900/80 text-blue-400 border border-blue-700' :
                     'bg-slate-700 text-slate-300'
                   }`}>
                     {currentRun.status}
@@ -961,7 +954,7 @@ export default function App() {
                   <p className="text-slate-400 text-lg">No scan history found.</p>
                 </div> : 
                 history.filter(s => s.repo?.toLowerCase().includes(searchFilter.toLowerCase())).map((scan: any) => (
-                <div key={scan.id} onClick={() => loadRun(scan.runId)} className="bg-slate-800 border border-slate-700 hover:border-blue-500 hover:shadow-[0_0_15px_rgba(59,130,246,0.2)] p-5 rounded-xl cursor-pointer transition-all flex flex-col md:flex-row justify-between items-center group gap-4">
+                <div key={scan.id} onClick={() => loadRun(scan.runId)} className="bg-slate-800 border border-slate-700 hover:border-blue-500 p-5 rounded-xl cursor-pointer transition-colors flex flex-col md:flex-row justify-between items-center group gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <Github size={20} className="text-slate-400" />
@@ -1007,14 +1000,14 @@ export default function App() {
                 <h2 className="text-2xl font-bold flex items-center gap-3"><Calendar className="text-blue-500"/> Scheduled Scans</h2>
                 <p className="text-slate-400 text-sm mt-1">Automate vulnerability checks with cron schedules.</p>
               </div>
-              <button onClick={() => setShowScheduleModal(true)} className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-lg font-bold text-sm shadow-lg transition-all flex items-center gap-2">
+              <button onClick={() => setShowScheduleModal(true)} className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-lg font-bold text-sm transition-colors flex items-center gap-2">
                 <Calendar size={18}/> Add Schedule
               </button>
             </div>
             
             {showScheduleModal && (
-              <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className="bg-slate-800 border border-slate-600 rounded-2xl p-8 w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-[slideIn_0.2s_ease-out]">
+              <div className="fixed inset-0 bg-slate-900/90 flex items-center justify-center z-50 p-4">
+                <div className="bg-slate-800 border border-slate-600 rounded-2xl p-8 w-full max-w-md shadow-xl animate-[slideIn_0.2s_ease-out]">
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="text-2xl font-bold text-white">New Schedule</h3>
                     <button onClick={() => setShowScheduleModal(false)} className="text-slate-400 hover:text-white"><XCircle size={24}/></button>
@@ -1152,8 +1145,7 @@ export default function App() {
               </div>
 
               {/* GitHub App Setup */}
-              <div className="bg-gradient-to-r from-blue-900/30 to-slate-800 border border-blue-800/50 rounded-2xl p-6 shadow-lg relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl"></div>
+              <div className="bg-slate-800 border border-blue-800/50 rounded-2xl p-6 shadow-lg relative overflow-hidden">
                 <h3 className="text-lg font-bold flex items-center gap-2 text-white mb-4"><Github size={20} className="text-blue-400"/> GitHub App Configuration</h3>
                 <p className="text-sm text-slate-300 mb-4">To enable automatic scanning on push or PR, configure your GitHub App or Webhook to send payloads to this URL:</p>
                 <div className="flex items-center gap-2">
@@ -1167,7 +1159,7 @@ export default function App() {
               </div>
 
               <div className="pt-4 pb-12 flex justify-end">
-                <button type="submit" className="bg-blue-600 hover:bg-blue-500 px-8 py-3.5 rounded-xl font-bold text-white transition-all shadow-[0_0_15px_rgba(37,99,235,0.4)] hover:shadow-[0_0_25px_rgba(37,99,235,0.6)] flex items-center gap-2">
+                <button type="submit" className="bg-blue-600 hover:bg-blue-500 px-8 py-3.5 rounded-xl font-bold text-white transition-colors flex items-center gap-2">
                   <CheckCircle2 size={20}/> Save All Settings
                 </button>
               </div>
@@ -1186,7 +1178,7 @@ export default function App() {
 
       {/* Help Modal */}
       {showHelpModal && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-slate-900/80 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 border border-slate-600 rounded-2xl p-8 w-full max-w-2xl shadow-2xl relative">
             <button onClick={() => setShowHelpModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white"><XCircle size={24}/></button>
             <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Info className="text-blue-500"/> How to setup GitHub App Webhook</h3>
