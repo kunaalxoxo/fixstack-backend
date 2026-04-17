@@ -66,6 +66,13 @@ const AnimatedNumber = ({ value }: { value: number }) => {
   return <span>{displayValue}</span>;
 };
 
+type GithubRepo = {
+  id: number;
+  full_name: string;
+  html_url: string;
+  private: boolean;
+};
+
 const getAgentAvatar = (name: string) => {
   const map: Record<string, { initials: string, color: string }> = {
     'Repo Scanner': { initials: 'RS', color: 'bg-blue-600' },
@@ -183,7 +190,10 @@ const TimelineEventCard = ({ event, run }: { event: RunEvent, run: Run }) => {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pin, setPin] = useState('');
+  const [githubToken, setGithubToken] = useState('');
+  const [githubRepos, setGithubRepos] = useState<GithubRepo[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState('');
+  const [isRepoLoading, setIsRepoLoading] = useState(false);
   
   const [currentTab, setCurrentTab] = useState<'dashboard' | 'history' | 'schedules' | 'settings'>('dashboard');
   const [currentRun, setCurrentRun] = useState<Run | null>(null);
@@ -217,25 +227,79 @@ export default function App() {
   };
 
   useEffect(() => {
-    const auth = localStorage.getItem('auth');
-    if (auth === 'true') setIsAuthenticated(true);
+    const savedGithubToken = localStorage.getItem('githubToken');
+    if (!savedGithubToken) return;
+    setGithubToken(savedGithubToken);
+    loginWithGithubToken(savedGithubToken);
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pin === 'fixstack2026') {
-      localStorage.setItem('auth', 'true');
+  const fetchGithubRepos = async (token: string) => {
+    const repos: GithubRepo[] = [];
+    let page = 1;
+    let hasMore = true;
+    try {
+      while (hasMore) {
+        const response = await fetch(`https://api.github.com/user/repos?per_page=100&sort=updated&page=${page}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+          },
+        });
+        if (!response.ok) {
+          throw new Error(
+            response.status === 401
+              ? 'Invalid GitHub token'
+              : `Failed to fetch repositories (HTTP ${response.status})`
+          );
+        }
+        const pageRepos = await response.json();
+        repos.push(...pageRepos);
+        hasMore = pageRepos.length === 100;
+        page += 1;
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      throw new Error('Network error while fetching repositories');
+    }
+    return repos;
+  };
+
+  const loginWithGithubToken = async (token: string) => {
+    setIsRepoLoading(true);
+    try {
+      const repos = await fetchGithubRepos(token);
+      setGithubRepos(repos);
+      localStorage.setItem('githubToken', token);
       setIsAuthenticated(true);
       fetchData();
-    } else {
-      addToast('Invalid PIN', 'error');
+      addToast('GitHub connected', 'success');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Failed to connect GitHub';
+      setIsAuthenticated(false);
+      setGithubRepos([]);
+      setSelectedRepo('');
+      localStorage.removeItem('githubToken');
+      addToast(message, 'error');
+    } finally {
+      setIsRepoLoading(false);
     }
   };
 
+  const handleGithubLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!githubToken.trim()) {
+      addToast('Enter a GitHub token to continue', 'error');
+      return;
+    }
+    await loginWithGithubToken(githubToken.trim());
+  };
+
   const handleLogout = () => {
-    localStorage.removeItem('auth');
+    localStorage.removeItem('githubToken');
     setIsAuthenticated(false);
-    setPin('');
+    setGithubToken('');
+    setGithubRepos([]);
+    setSelectedRepo('');
   };
 
   useEffect(() => {
@@ -263,14 +327,15 @@ export default function App() {
 
   const validateUrl = (url: string) => url && url.startsWith('https://github.com/');
 
-  const startScan = async (isDemo = false) => {
-    if (!isDemo && !validateUrl(repoUrl)) {
+  const startScan = async (isDemo = false, selectedRepoUrl?: string) => {
+    const finalRepoUrl = selectedRepoUrl || repoUrl;
+    if (!isDemo && !validateUrl(finalRepoUrl)) {
       setError('Please enter a valid GitHub URL starting with https://github.com/');
       return;
     }
     setIsLoading(true); setError(null); setCurrentRun(null); setEvents([]);
     try {
-      const response = await fixstackApi.startScan(isDemo ? undefined : repoUrl);
+      const response = await fixstackApi.startScan(isDemo ? undefined : finalRepoUrl);
       const runId = response.data.runId;
       addToast('Scan started successfully', 'success');
       fetchRun(runId);
@@ -446,7 +511,6 @@ export default function App() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        {/* Animated Background */}
         <div className="absolute inset-0 z-0 opacity-20">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
           <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
@@ -455,37 +519,34 @@ export default function App() {
 
         <div className="bg-slate-800/80 backdrop-blur-xl p-10 rounded-2xl border border-slate-700 shadow-2xl max-w-md w-full text-center relative z-10 transform transition-all">
           <div className="flex justify-center mb-6">
-             <div className="relative">
-               <Shield size={72} className="text-blue-500 relative z-10" />
-               <div className="absolute inset-0 bg-blue-500 blur-xl opacity-50 z-0 animate-pulse"></div>
-             </div>
+            <div className="relative">
+              <Github size={72} className="text-blue-500 relative z-10" />
+              <div className="absolute inset-0 bg-blue-500 blur-xl opacity-50 z-0 animate-pulse"></div>
+            </div>
           </div>
           <h1 className="text-4xl font-extrabold mb-2 bg-gradient-to-r from-blue-400 via-cyan-400 to-purple-500 text-transparent bg-clip-text">FixStack</h1>
-          <p className="text-slate-400 font-medium tracking-wide uppercase text-sm mb-8">Autonomous Dependency Security</p>
-          <form onSubmit={handleLogin} className="space-y-6">
+          <p className="text-slate-400 font-medium tracking-wide uppercase text-sm mb-8">Login with GitHub to continue</p>
+          <form onSubmit={handleGithubLogin} className="space-y-6">
             <div className="relative group">
               <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg blur opacity-30 group-focus-within:opacity-100 transition duration-500"></div>
               <input 
                 type="password" 
-                value={pin} 
-                onChange={e => setPin(e.target.value)} 
-                placeholder="Enter Access PIN" 
-                className="relative w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-4 text-center text-xl tracking-widest focus:outline-none text-white shadow-inner" 
+                value={githubToken} 
+                onChange={e => setGithubToken(e.target.value)} 
+                placeholder="GitHub Personal Access Token" 
+                className="relative w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-4 text-center focus:outline-none text-white shadow-inner font-mono text-sm" 
                 autoFocus 
               />
             </div>
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-4 rounded-lg transition-all shadow-[0_0_20px_rgba(37,99,235,0.5)] hover:shadow-[0_0_30px_rgba(37,99,235,0.8)]">
-              Secure Access
+            <button type="submit" disabled={isRepoLoading} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-4 px-4 rounded-lg transition-all shadow-[0_0_20px_rgba(37,99,235,0.5)] hover:shadow-[0_0_30px_rgba(37,99,235,0.8)]">
+              {isRepoLoading ? 'Connecting...' : 'Login with GitHub'}
             </button>
           </form>
-          <div className="mt-8">
-             <span className="bg-slate-900 text-slate-400 px-3 py-1.5 rounded-full text-xs font-mono border border-slate-700 inline-flex items-center gap-2">
-                <Info size={12}/> Hint: fixstack2026
-             </span>
+          <div className="mt-8 text-xs text-slate-400">
+            Use a token with <span className="font-mono text-slate-300">repo</span> scope to list repositories.
           </div>
         </div>
-        
-        {/* Toasts */}
+
         <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
           {toasts.map(t => (
             <div key={t.id} className={`px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium flex items-center gap-2 animate-[slideIn_0.3s_ease-out] ${t.type === 'error' ? 'bg-red-600' : t.type === 'success' ? 'bg-green-600' : 'bg-blue-600'}`}>
@@ -530,7 +591,7 @@ export default function App() {
                 SCAN RUNNING
               </div>
             )}
-            <button onClick={handleLogout} className="text-slate-400 hover:text-white flex items-center gap-2 text-sm transition-colors"><LogOut size={16}/> Logout</button>
+            <button onClick={handleLogout} className="text-slate-400 hover:text-white flex items-center gap-2 text-sm transition-colors"><LogOut size={16}/> Disconnect GitHub</button>
           </div>
         </div>
       </nav>
@@ -553,15 +614,39 @@ export default function App() {
               <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left mb-16">
                 <div className="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-xl relative overflow-hidden group">
                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Github size={100}/></div>
-                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2 relative z-10"><Github size={24}/> Single Repository</h3>
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2 relative z-10"><Github size={24}/> Your Repositories</h3>
                   <div className="flex flex-col gap-4 relative z-10">
-                    <div className="relative">
-                      <Github size={18} className="absolute left-3 top-3.5 text-slate-500" />
-                      <input type="text" placeholder="e.g. https://github.com/facebook/react" value={repoUrl} onChange={(e) => {setRepoUrl(e.target.value); setError(null);}} disabled={isLoading} className="bg-slate-900 border border-slate-600 rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:border-blue-500 w-full text-sm" />
-                    </div>
-                    <button onClick={() => startScan(false)} disabled={isLoading || !repoUrl} className="bg-blue-600 hover:bg-blue-500 py-3 rounded-lg font-bold flex justify-center items-center gap-2 w-full transition-colors disabled:opacity-50 shadow-lg">
-                      {isLoading ? <Loader2 className="animate-spin" /> : <><Play size={18} /> Start Autonomous Scan</>}
-                    </button>
+                    {githubRepos.length > 0 ? (
+                      <>
+                        <select
+                          className="bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 w-full text-sm"
+                          value={selectedRepo}
+                          onChange={(e) => {
+                            const selectedRepoUrl = e.target.value;
+                            setSelectedRepo(selectedRepoUrl);
+                            if (!selectedRepoUrl) return;
+                            setRepoUrl(selectedRepoUrl);
+                            setError(null);
+                            startScan(false, selectedRepoUrl);
+                          }}
+                          disabled={isLoading}
+                        >
+                          <option value="">Select a repository to start scanning</option>
+                          {githubRepos.map((repo) => (
+                            <option key={repo.id} value={repo.html_url}>
+                              {repo.full_name}{repo.private ? ' (private)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <button onClick={() => loginWithGithubToken(githubToken)} disabled={isRepoLoading} className="bg-slate-700 hover:bg-slate-600 py-3 rounded-lg font-bold flex justify-center items-center gap-2 w-full transition-colors disabled:opacity-50">
+                          {isRepoLoading ? <Loader2 className="animate-spin" /> : <><RefreshCw size={18} /> Refresh Repositories</>}
+                        </button>
+                      </>
+                    ) : (
+                      <div className="text-sm text-slate-400 bg-slate-900 border border-slate-700 rounded-lg p-4">
+                        No repositories found for this account.
+                      </div>
+                    )}
                   </div>
                 </div>
 
