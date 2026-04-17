@@ -145,7 +145,7 @@ Do NOT include any explanation, markdown, or extra text.`;
 
       if (safeUpgrades.length === 0) return null;
 
-      const idx = Math.min(Math.max(attempt - 1, 0), safeUpgrades.length - 1);
+      const idx = Math.min(attempt - 1, safeUpgrades.length - 1);
       const suggested = safeUpgrades[idx];
 
       await this.logger.log(
