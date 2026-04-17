@@ -1,13 +1,46 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
+    './index.html',
+    './src/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {
+      colors: {
+        bg: {
+          base: 'var(--bg-base)',
+          elevated: 'var(--bg-elevated)',
+          raised: 'var(--bg-raised)',
+          overlay: 'var(--bg-overlay)',
+          highlight: 'var(--bg-highlight)',
+        },
+        border: {
+          subtle: 'var(--border-subtle)',
+          default: 'var(--border-default)',
+          focus: 'var(--border-focus)',
+        },
+        text: {
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          muted: 'var(--text-muted)',
+        },
+        accent: {
+          primary: 'var(--accent-primary)',
+          glow: 'var(--accent-glow)',
+        },
+        severity: {
+          critical: 'var(--severity-critical)',
+          high: 'var(--severity-high)',
+          medium: 'var(--severity-medium)',
+          low: 'var(--severity-low)',
+          info: 'var(--severity-info)',
+        },
+        success: 'var(--success)',
+        warning: 'var(--warning)',
+        error: 'var(--error)',
+      },
       animation: {
-        'blob': 'blob 7s infinite',
+        blob: 'blob 7s infinite',
         'gradient-x': 'gradient-x 3s ease infinite',
       },
       keyframes: {
@@ -25,4 +58,4 @@ export default {
     },
   },
   plugins: [],
-}
+};
