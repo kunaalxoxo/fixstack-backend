@@ -100,7 +100,14 @@ Do NOT include any explanation, markdown, or extra text.`;
         const raw = response.data.choices[0].message.content.trim();
         // Validate it looks like a semver
         if (/^\d+\.\d+\.\d+/.test(raw)) return raw;
-      } catch (_) {}
+      } catch (error: any) {
+        await this.logger.log(
+          'Patch Planner',
+          'Groq LLM',
+          'INFO',
+          `Groq model ${model} failed for ${pkgName}@${version}: ${error?.message || 'unknown error'}`
+        );
+      }
     }
 
     return null;

@@ -146,6 +146,12 @@ Answer ONLY in this exact JSON format (no markdown, no explanation outside JSON)
           affectedFiles: Array.isArray(parsed.affectedFiles) ? parsed.affectedFiles : [],
         };
       } catch (err: any) {
+        await this.logger.log(
+          'Context Analyst',
+          'Groq LLM',
+          'INFO',
+          `Groq model ${model} failed for ${vuln.cveId}: ${err?.message || 'unknown error'}`
+        );
         lastError = err;
       }
     }
