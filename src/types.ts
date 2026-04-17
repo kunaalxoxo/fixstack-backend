@@ -39,6 +39,10 @@ export interface Vulnerability {
   severity: string;
   description: string;
   ecosystem?: string;
+  source?: 'OSV' | 'NVD' | 'OSV-fallback';
+  /** Added by Context Analyst */
+  contextNote?: string;
+  affectedFiles?: string[];
 }
 
 export interface RemediationResult {
@@ -60,4 +64,11 @@ export interface ValidationResult {
   success: boolean;
   message: string;
   logs: string[];
+}
+
+export interface ExposureResult {
+  isReachable: boolean;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  reasoning: string;
+  affectedFiles: string[];
 }
