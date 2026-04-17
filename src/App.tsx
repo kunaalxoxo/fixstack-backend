@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { fixstackApi } from './api';
 import { Run, RunEvent } from './types';
 import { 
-  Shield, Play, Loader2, CheckCircle2, AlertCircle, Clock, History, Github, 
+  Shield, Play, Loader2, CheckCircle2, AlertCircle, Clock, History, GitBranch as Github, 
   ArrowRight, Activity, Box, XCircle, LogOut, Settings as SettingsIcon, 
   Calendar, Building, Bell, LayoutDashboard, Brain, Flame, Info, Search, 
   Trash2, Copy, PlayCircle, Zap, Check, Skull, AlertTriangle 
