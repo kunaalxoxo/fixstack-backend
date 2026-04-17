@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Logger } from './logger';
 import { db } from '../db/store';
+import { getGroqModelCandidates } from './groq';
 
 // Static known-safe patches for demo reliability and offline use
 const KNOWN_PATCHES: Record<string, string[]> = {
@@ -75,31 +76,41 @@ If attempt > 1, suggest a more conservative (lower) version than you previously 
 Reply ONLY with the version string. Example: 4.17.21
 Do NOT include any explanation, markdown, or extra text.`;
 
-    try {
-      const response = await axios.post(
-        'https://api.groq.com/openai/v1/chat/completions',
-        {
-          model: 'llama3-8b-8192',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.1,
-          max_tokens: 20,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${groqApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 8000,
-        }
-      );
+    const candidateModels = getGroqModelCandidates();
 
-      const raw = response.data.choices[0].message.content.trim();
-      // Validate it looks like a semver
-      if (/^\d+\.\d+\.\d+/.test(raw)) return raw;
-      return null;
-    } catch (_) {
-      return null;
+    for (const model of candidateModels) {
+      try {
+        const response = await axios.post(
+          'https://api.groq.com/openai/v1/chat/completions',
+          {
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.1,
+            max_tokens: 20,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${groqApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 8000,
+          }
+        );
+
+        const raw = response.data.choices[0].message.content.trim();
+        // Validate it looks like a semver
+        if (/^\d+\.\d+\.\d+/.test(raw)) return raw;
+      } catch (error: any) {
+        await this.logger.log(
+          'Patch Planner',
+          'Groq LLM',
+          'INFO',
+          `Groq model ${model} failed for ${pkgName}@${version}: ${error?.message || 'unknown error'}`
+        );
+      }
     }
+
+    return null;
   }
 
   private parseSemver(version: string): [number, number, number] | null {
