@@ -421,6 +421,19 @@ export default function App() {
       addToast('Month must be * or a value between 1 and 12', 'error');
       return;
     }
+    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(scheduleTime)) {
+      addToast('Time must be in HH:MM format (00:00 - 23:59)', 'error');
+      return;
+    }
+    if (dayOfMonth !== '*' && month !== '*') {
+      const maxDaysByMonth: Record<number, number> = { 1: 31, 2: 29, 3: 31, 4: 30, 5: 31, 6: 30, 7: 31, 8: 31, 9: 30, 10: 31, 11: 30, 12: 31 };
+      const day = Number(dayOfMonth);
+      const monthNum = Number(month);
+      if (day > maxDaysByMonth[monthNum]) {
+        addToast(`Day ${day} is not valid for month ${monthNum}`, 'error');
+        return;
+      }
+    }
     const [hour = '00', minute = '00'] = scheduleTime.split(':');
     const cronExpression = `${minute} ${hour} ${dayOfMonth} ${month} ${scheduleWeekday}`;
     try {
@@ -1073,12 +1086,12 @@ export default function App() {
                       <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">Schedule Configuration</label>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs text-[var(--text-secondary)] mb-1">Time</label>
-                          <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" />
+                          <label htmlFor="schedule-time" className="block text-xs text-[var(--text-secondary)] mb-1">Time</label>
+                          <input id="schedule-time" type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" />
                         </div>
                         <div>
-                          <label className="block text-xs text-[var(--text-secondary)] mb-1">Weekday</label>
-                          <select value={scheduleWeekday} onChange={e => setScheduleWeekday(e.target.value)} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]">
+                          <label htmlFor="schedule-weekday" className="block text-xs text-[var(--text-secondary)] mb-1">Weekday</label>
+                          <select id="schedule-weekday" value={scheduleWeekday} onChange={e => setScheduleWeekday(e.target.value)} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]">
                             <option value="*">Any</option>
                             <option value="0">Sunday</option>
                             <option value="1">Monday</option>
@@ -1090,12 +1103,12 @@ export default function App() {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs text-[var(--text-secondary)] mb-1">Day of Month</label>
-                          <input type="text" inputMode="numeric" value={scheduleDayOfMonth} onChange={e => setScheduleDayOfMonth(e.target.value || '*')} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" placeholder="* or 1-31" />
+                          <label htmlFor="schedule-day-of-month" className="block text-xs text-[var(--text-secondary)] mb-1">Day of Month</label>
+                          <input id="schedule-day-of-month" type="text" inputMode="numeric" value={scheduleDayOfMonth} onChange={e => setScheduleDayOfMonth(e.target.value || '*')} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" placeholder="* or 1-31" />
                         </div>
                         <div>
-                          <label className="block text-xs text-[var(--text-secondary)] mb-1">Month</label>
-                          <input type="text" inputMode="numeric" value={scheduleMonth} onChange={e => setScheduleMonth(e.target.value || '*')} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" placeholder="* or 1-12" />
+                          <label htmlFor="schedule-month" className="block text-xs text-[var(--text-secondary)] mb-1">Month</label>
+                          <input id="schedule-month" type="text" inputMode="numeric" value={scheduleMonth} onChange={e => setScheduleMonth(e.target.value || '*')} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" placeholder="* or 1-12" />
                         </div>
                       </div>
                       <p className="mt-2 text-xs text-[var(--text-secondary)] font-mono">
