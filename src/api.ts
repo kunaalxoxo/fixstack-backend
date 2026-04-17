@@ -25,7 +25,10 @@ export const fixstackApi = {
   getSchedules: () => api.get('/api/schedules'),
   addSchedule: (repoUrl: string, cronExpression: string) => api.post('/api/schedules', { repoUrl, cronExpression }),
   deleteSchedule: (repoUrl: string) => api.delete(`/api/schedules/${encodeURIComponent(repoUrl)}`),
+  runNowSchedule: (repoUrl: string) => api.post(`/api/schedules/${encodeURIComponent(repoUrl)}/run-now`),
 
   getSettings: () => api.get('/api/settings'),
-  saveSettings: (webhookUrl: string, email: string) => api.post('/api/settings', { webhookUrl, email }),
+  saveSettings: (webhookUrl: string, email: string, githubToken?: string, groqApiKey?: string, webhookSecret?: string) => 
+    api.post('/api/settings', { webhookUrl, email, githubToken, groqApiKey, webhookSecret }),
+  testWebhook: () => api.post('/api/test-webhook'),
 };

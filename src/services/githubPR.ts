@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { RemediationResult } from '../types';
 import { Logger } from './logger';
+import { db } from '../db/store';
 
 export class GitHubPRService {
   static async createPR(
@@ -9,7 +10,8 @@ export class GitHubPRService {
     runId: string,
     logger: Logger
   ): Promise<{ prUrl: string; prBranch: string } | null> {
-    if (!process.env.GITHUB_TOKEN) {
+    const githubToken = process.env.GITHUB_TOKEN || db.getSetting('githubToken');
+    if (!githubToken) {
       await logger.log('GitHub PR Agent', 'System', 'WARNING', 'GITHUB_TOKEN not set. Skipping PR creation.');
       return null;
     }
@@ -23,7 +25,7 @@ export class GitHubPRService {
       if (!owner || !repo) throw new Error('Invalid repo URL');
 
       const headers = {
-        'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
+        'Authorization': `Bearer ${githubToken}`,
         'Accept': 'application/vnd.github.v3+json'
       };
 

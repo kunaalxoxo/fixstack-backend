@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Logger } from './logger';
 import { Vulnerability } from '../types';
+import { db } from '../db/store';
 
 interface ExposureResult {
   isReachable: boolean;
@@ -51,8 +52,9 @@ export class ContextAnalystAgent {
       const headers: Record<string, string> = {
         Accept: 'application/vnd.github.v3+json',
       };
-      if (process.env.GITHUB_TOKEN) {
-        headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+      const githubToken = process.env.GITHUB_TOKEN || db.getSetting('githubToken');
+      if (githubToken) {
+        headers['Authorization'] = `Bearer ${githubToken}`;
       }
 
       // Search for files that import/require the vulnerable package
@@ -82,7 +84,7 @@ export class ContextAnalystAgent {
   }
 
   private async askGroq(vuln: Vulnerability, sourceContext: string): Promise<ExposureResult> {
-    const groqApiKey = process.env.GROQ_API_KEY;
+    const groqApiKey = process.env.GROQ_API_KEY || db.getSetting('groqApiKey');
     if (!groqApiKey) {
       // Fallback: mark as potentially reachable with LOW confidence
       return {

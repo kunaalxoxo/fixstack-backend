@@ -205,13 +205,29 @@ app.get('/api/runs', async (_req: Request, res: Response) => {
 
 // GET /api/scans
 app.get('/api/scans', (_req: Request, res: Response) => {
-  res.json(db.getScans());
+  const runs = db.getScans();
+  res.json(runs.map(r => ({
+    id: r.id,
+    runId: r.id,
+    repo: r.input.repoName,
+    createdAt: r.startTime,
+    vulnCount: r.vulnerabilities.length,
+    fixedCount: r.remediations.filter(x => x.status === 'FIXED').length,
+    status: r.status,
+    prUrl: r.prUrl || null,
+    ecosystem: r.input.ecosystem,
+    remediations: r.remediations,
+    vulnerabilities: r.vulnerabilities,
+  })));
 });
 
 // Settings
 app.post('/api/settings', (req: Request, res: Response) => {
   if (req.body.webhookUrl !== undefined) db.saveSetting('webhookUrl', req.body.webhookUrl);
   if (req.body.email !== undefined) db.saveSetting('email', req.body.email);
+  if (req.body.githubToken !== undefined) db.saveSetting('githubToken', req.body.githubToken);
+  if (req.body.groqApiKey !== undefined) db.saveSetting('groqApiKey', req.body.groqApiKey);
+  if (req.body.webhookSecret !== undefined) db.saveSetting('webhookSecret', req.body.webhookSecret);
   res.json({ message: 'Settings saved' });
 });
 
@@ -219,6 +235,9 @@ app.get('/api/settings', (_req: Request, res: Response) => {
   res.json({
     webhookUrl: db.getSetting('webhookUrl') || '',
     email: db.getSetting('email') || '',
+    githubToken: db.getSetting('githubToken') || '',
+    groqApiKey: db.getSetting('groqApiKey') || '',
+    webhookSecret: db.getSetting('webhookSecret') || '',
   });
 });
 
@@ -240,6 +259,53 @@ app.delete('/api/schedules/:repoUrl', (req: Request, res: Response) => {
   db.deleteSchedule(repoUrl);
   setupCronJobs();
   res.json({ message: 'Schedule deleted' });
+});
+
+app.post('/api/schedules/:repoUrl/run-now', async (req: Request, res: Response) => {
+  const repoUrl = decodeURIComponent(req.params.repoUrl);
+  try {
+    const run = await triggerScan(repoUrl);
+    res.status(202).json({ message: 'Scan triggered immediately', runId: run.id });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/api/test-webhook', async (req: Request, res: Response) => {
+  const webhookUrl = db.getSetting('webhookUrl');
+  if (!webhookUrl) return res.status(400).json({ error: 'Webhook URL not configured' });
+  
+  try {
+    const payload = {
+      event: 'test',
+      message: 'This is a test webhook from FixStack',
+      timestamp: new Date().toISOString()
+    };
+    
+    const secret = db.getSetting('webhookSecret');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    
+    if (secret) {
+      const hmac = crypto.createHmac('sha256', secret);
+      hmac.update(JSON.stringify(payload));
+      headers['X-Hub-Signature-256'] = `sha256=${hmac.digest('hex')}`;
+    }
+    
+    // Can't use axios here without importing it. I'll just use fetch API which is native in Node 18+
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload)
+    });
+    
+    if (response.ok) {
+      res.json({ message: 'Test webhook sent successfully' });
+    } else {
+      res.status(400).json({ error: `Webhook failed with status ${response.status}` });
+    }
+  } catch (error: any) {
+    res.status(500).json({ error: `Failed to send webhook: ${error.message}` });
+  }
 });
 
 let cronTasks: cron.ScheduledTask[] = [];
