@@ -14,7 +14,7 @@ export class LookupAgent {
     );
 
     const osvVulns = await this.queryOSV(pkgName, version, ecosystem);
-    const nvdVulns = await this.queryNVD(pkgName, version);
+    const nvdVulns = await this.queryNVD(pkgName, version, ecosystem);
 
     // Merge: prefer OSV entries but supplement with any NVD-only CVEs
     const merged = [...osvVulns];
@@ -101,7 +101,7 @@ export class LookupAgent {
     return [];
   }
 
-  private async queryNVD(pkgName: string, version: string): Promise<Vulnerability[]> {
+  private async queryNVD(pkgName: string, version: string, ecosystem: string): Promise<Vulnerability[]> {
     await this.logger.log(
       'CVE Lookup Agent',
       'NVD REST API',
@@ -139,7 +139,7 @@ export class LookupAgent {
           cveId: cve.id,
           severity,
           description,
-          ecosystem: 'npm',
+          ecosystem,
           source: 'NVD',
         };
       });

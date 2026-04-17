@@ -76,6 +76,17 @@ export class WorkflowOrchestrator {
 
         while (attempt <= 3 && !success) {
           const suggested = await this.planner.suggestPatch(dep.name, dep.version, attempt);
+          if (suggested === dep.version) {
+            await this.logger.log(
+              'Retry Controller',
+              'Workflow Logic',
+              'WARNING',
+              `Attempt ${attempt} for ${dep.name} did not produce a newer version. Retrying...`
+            );
+            attempt++;
+            continue;
+          }
+
           const validation = await this.validator.validate(dep.name, suggested);
 
           if (validation.success) {
