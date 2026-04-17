@@ -4,10 +4,9 @@
   "version": "1.0.0",
   "scripts": {
     "dev:frontend": "vite",
-    "dev:backend": "TS_NODE_PROJECT=tsconfig.server.json ts-node-dev --respawn --transpile-only src/server.ts",
-    "build": "npm install && vite build",
-    "build:backend": "npm install",
-    "start": "TS_NODE_PROJECT=tsconfig.server.json node -r ts-node/register/transpile-only src/server.ts",
+    "dev:backend": "cross-env TS_NODE_PROJECT=tsconfig.json ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "vite build",
+    "start": "node -r ts-node/register/transpile-only src/server.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -21,6 +20,7 @@
     "autoprefixer": "^10.5.0",
     "axios": "^1.6.2",
     "cors": "^2.8.6",
+    "cross-env": "^10.1.0",
     "express": "^4.18.2",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.8.0",

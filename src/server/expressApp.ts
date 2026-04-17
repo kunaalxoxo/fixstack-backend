@@ -2,11 +2,11 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from './db/store';
-import { DependencyInput, Run } from './types';
-import { WorkflowOrchestrator } from './services/orchestrator';
-import { RepoFetcher } from './services/repoFetcher';
-import { Logger } from './services/logger';
+import { db } from '../db/store';
+import { DependencyInput, Run } from '../types';
+import { WorkflowOrchestrator } from '../services/orchestrator';
+import { RepoFetcher } from '../services/repoFetcher';
+import { Logger } from '../services/logger';
 import * as cron from 'node-cron';
 
 const app = express();

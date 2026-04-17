@@ -3,32 +3,48 @@ import {
   Shield, LayoutDashboard, Box, AlertTriangle, Activity, Play,
   Send, ChevronRight, Check, Loader2, Menu, X, Mail, User, MessageSquare
 } from 'lucide-react';
+import { fixstackApi } from './api';
+import { Run, RunEvent } from './types';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 type Section = 'overview' | 'how-it-works' | 'about' | 'contact' | 'demo' | 'dependencies' | 'vulnerabilities' | 'agents' | 'activity';
-
-interface DemoFile {
-  name: string;
-  status: 'pending' | 'scanning' | 'fixed';
-  message?: string;
-}
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
 
-// ─── Demo Data ─────────────────────────────────────────────────────────────────
+interface ScanSummary {
+  id: string;
+  runId?: string;
+  repo: string;
+  createdAt: string;
+  vulnCount: number;
+  fixedCount: number;
+  status: string;
+  prUrl?: string | null;
+  vulnerabilities?: Array<{
+    cveId?: string;
+    pkgName?: string;
+    severity?: string;
+  }>;
+}
 
-const DEMO_FILES: { name: string; message: string; delay: number }[] = [
-  { name: 'package.json', message: 'Scanned 47 dependencies. Found 3 vulnerabilities.', delay: 800 },
-  { name: 'lodash@4.17.19', message: 'CVE-2021-23337 detected. Upgrading to 4.17.21...', delay: 1200 },
-  { name: 'axios@0.21.0', message: 'CVE-2021-3749 detected. Upgrading to 0.21.4...', delay: 900 },
-  { name: 'node-fetch@2.6.0', message: 'CVE-2022-0235 detected. Upgrading to 2.6.7...', delay: 1100 },
-  { name: 'package-lock.json', message: 'Lock file regenerated with secure versions.', delay: 600 },
-  { name: 'Pull Request', message: 'PR #142 created: "fix: patch 3 security vulnerabilities"', delay: 500 },
-];
+interface ScheduleConfig {
+  repo: string;
+  cronExpression: string;
+}
+
+interface AppSettings {
+  webhookUrl: string;
+  email: string;
+  githubToken?: string;
+  groqApiKey?: string;
+  webhookSecret?: string;
+}
+
+// ─── Demo Data ─────────────────────────────────────────────────────────────────
 
 const AI_RESPONSES: Record<string, string> = {
   'scan my package.json': `Scanning package.json...
@@ -180,33 +196,70 @@ function SidebarItem({
 
 // ─── Sections ──────────────────────────────────────────────────────────────────
 
-function OverviewSection() {
+function OverviewSection({
+  scans,
+  schedules,
+  settings,
+  currentRun,
+  isFetchingData,
+  apiError,
+  onRefresh,
+}: {
+  scans: ScanSummary[];
+  schedules: ScheduleConfig[];
+  settings: AppSettings;
+  currentRun: Run | null;
+  isFetchingData: boolean;
+  apiError: string | null;
+  onRefresh: () => void;
+}) {
+  const totalVulnerabilities = scans.reduce((sum, scan) => sum + (scan.vulnCount || 0), 0);
+  const totalFixed = scans.reduce((sum, scan) => sum + (scan.fixedCount || 0), 0);
+  const integrations = [settings.webhookUrl, settings.email].filter(Boolean).length;
+  const riskScore = totalVulnerabilities === 0 ? 'A' : totalVulnerabilities < 5 ? 'B' : 'C';
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-[var(--fg)] mb-2">Overview</h1>
-        <p className="text-[var(--fg-secondary)]">Real-time security metrics for your repositories.</p>
+        <p className="text-[var(--fg-secondary)]">Live security metrics from the FixStack backend.</p>
       </div>
 
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onRefresh}
+          className="inline-flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-md text-sm hover:bg-[var(--bg-secondary)]"
+        >
+          Refresh Data
+        </button>
+        {isFetchingData && <span className="text-sm text-[var(--fg-muted)]">Loading...</span>}
+      </div>
+
+      {apiError && (
+        <div className="border border-[var(--error)]/30 rounded-lg p-4 bg-[var(--error)]/5 text-sm text-[var(--error)]">
+          Failed to load backend data: {apiError}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Dependencies Scanned" value="1,247" trend="+23 this week" />
-        <MetricCard label="Vulnerabilities Fixed" value="89" trend="12 pending" />
-        <MetricCard label="Active Agents" value="6" trend="All operational" />
-        <MetricCard label="Risk Score" value="A" trend="Low risk" />
+        <MetricCard label="Scans" value={scans.length} trend={`${schedules.length} schedules`} />
+        <MetricCard label="Vulnerabilities" value={totalVulnerabilities} trend={`${totalFixed} fixed`} />
+        <MetricCard label="Integrations" value={integrations} trend="Webhook / Email" />
+        <MetricCard label="Risk Score" value={riskScore} trend={currentRun ? `Run: ${currentRun.status}` : 'No active run'} />
       </div>
 
       <div className="border border-[var(--border)] rounded-lg p-6 bg-[var(--bg)]">
         <h2 className="text-lg font-medium text-[var(--fg)] mb-4">Recent Activity</h2>
         <div className="space-y-3">
-          {[
-            { time: '2 min ago', event: 'CVE-2024-1234 patched in repo/frontend' },
-            { time: '15 min ago', event: 'Scan completed for repo/backend — 0 issues' },
-            { time: '1 hour ago', event: 'PR #142 merged: security patches' },
-            { time: '3 hours ago', event: 'New vulnerability detected in lodash@4.17.19' },
-          ].map((item, i) => (
-            <div key={i} className="flex items-start gap-4 py-2 border-b border-[var(--border-light)] last:border-0">
-              <span className="text-xs text-[var(--fg-muted)] w-20 shrink-0">{item.time}</span>
-              <span className="text-sm text-[var(--fg-secondary)]">{item.event}</span>
+          {scans.length === 0 && (
+            <p className="text-sm text-[var(--fg-muted)]">No scans yet. Start one from the Demo section.</p>
+          )}
+          {scans.slice(0, 4).map((scan) => (
+            <div key={scan.id} className="flex items-start gap-4 py-2 border-b border-[var(--border-light)] last:border-0">
+              <span className="text-xs text-[var(--fg-muted)] w-36 shrink-0">{new Date(scan.createdAt).toLocaleString()}</span>
+              <span className="text-sm text-[var(--fg-secondary)]">
+                {scan.repo} — {scan.vulnCount} vulnerabilities, {scan.fixedCount} fixed, status {scan.status}
+              </span>
             </div>
           ))}
         </div>
@@ -251,81 +304,85 @@ function HowItWorksSection() {
   );
 }
 
-function DemoSection() {
-  const [isRunning, setIsRunning] = useState(false);
-  const [files, setFiles] = useState<DemoFile[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  const runDemo = () => {
-    setIsRunning(true);
-    setFiles([]);
-    setCurrentIndex(0);
-  };
-
-  useEffect(() => {
-    if (!isRunning || currentIndex >= DEMO_FILES.length) {
-      if (currentIndex >= DEMO_FILES.length) {
-        setIsRunning(false);
-      }
-      return;
-    }
-
-    const file = DEMO_FILES[currentIndex];
-    
-    // Add file as scanning
-    setFiles(prev => [...prev, { name: file.name, status: 'scanning' }]);
-
-    // After delay, mark as fixed
-    const timer = setTimeout(() => {
-      setFiles(prev => 
-        prev.map((f, i) => 
-          i === prev.length - 1 ? { ...f, status: 'fixed', message: file.message } : f
-        )
-      );
-      setCurrentIndex(prev => prev + 1);
-    }, file.delay);
-
-    return () => clearTimeout(timer);
-  }, [isRunning, currentIndex]);
-
+function DemoSection({
+  repoUrl,
+  setRepoUrl,
+  onStartScan,
+  isStartingScan,
+  currentRun,
+  runEvents,
+}: {
+  repoUrl: string;
+  setRepoUrl: (value: string) => void;
+  onStartScan: (repoUrl: string) => Promise<void>;
+  isStartingScan: boolean;
+  currentRun: Run | null;
+  runEvents: RunEvent[];
+}) {
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-[var(--fg)] mb-2">Demo</h1>
-        <p className="text-[var(--fg-secondary)]">See FixStack in action with a sample repository.</p>
+        <p className="text-[var(--fg-secondary)]">Trigger a real backend scan and inspect live run status.</p>
       </div>
 
-      <button
-        onClick={runDemo}
-        disabled={isRunning}
-        className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--fg)] text-[var(--bg)] rounded-md font-medium text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <Play size={16} />
-        Run Demo with Sample File
-      </button>
+      <div className="border border-[var(--border)] rounded-lg p-6 bg-[var(--bg)] space-y-4">
+        <label className="block text-sm font-medium text-[var(--fg)]">Repository URL</label>
+        <input
+          type="url"
+          value={repoUrl}
+          onChange={(e) => setRepoUrl(e.target.value)}
+          placeholder="https://github.com/owner/repo"
+          className="w-full px-4 py-2.5 border border-[var(--border)] rounded-md bg-[var(--bg)] text-[var(--fg)] placeholder:text-[var(--fg-muted)] focus:outline-none focus:border-[var(--fg)]"
+        />
+        <button
+          onClick={() => onStartScan(repoUrl)}
+          disabled={isStartingScan || !repoUrl.trim()}
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--fg)] text-[var(--bg)] rounded-md font-medium text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isStartingScan ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+          {isStartingScan ? 'Starting Scan...' : 'Start Scan'}
+        </button>
+      </div>
 
-      {files.length > 0 && (
+      {currentRun && (
         <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--bg)]">
           <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--bg-secondary)]">
-            <p className="text-sm font-medium text-[var(--fg)]">Scan Progress</p>
+            <p className="text-sm font-medium text-[var(--fg)]">Current Run</p>
+          </div>
+          <div className="p-4 space-y-2 text-sm">
+            <p className="text-[var(--fg-secondary)]">Run ID: <span className="text-[var(--fg)] font-medium">{currentRun.id}</span></p>
+            <p className="text-[var(--fg-secondary)]">Status: <span className="text-[var(--fg)] font-medium">{currentRun.status}</span></p>
+            <p className="text-[var(--fg-secondary)]">Vulnerabilities: <span className="text-[var(--fg)] font-medium">{currentRun.vulnerabilities.length}</span></p>
+            <p className="text-[var(--fg-secondary)]">Remediations: <span className="text-[var(--fg)] font-medium">{currentRun.remediations.length}</span></p>
+            {currentRun.prUrl && (
+              <a
+                href={currentRun.prUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex text-sm text-[var(--info)] underline"
+              >
+                Open Pull Request
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {runEvents.length > 0 && (
+        <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--bg)]">
+          <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--bg-secondary)]">
+            <p className="text-sm font-medium text-[var(--fg)]">Latest Events</p>
           </div>
           <div className="divide-y divide-[var(--border-light)]">
-            {files.map((file, i) => (
-              <div key={i} className="px-4 py-3 flex items-start gap-3">
-                <div className="mt-0.5">
-                  {file.status === 'scanning' ? (
-                    <Loader2 size={16} className="animate-spin text-[var(--fg-muted)]" />
-                  ) : (
-                    <Check size={16} className="text-[var(--success)]" />
-                  )}
-                </div>
+            {runEvents.slice(-6).reverse().map((event) => (
+              <div key={event.id} className="px-4 py-3 flex items-start gap-3">
+                <span className="text-xs px-2 py-1 rounded-full bg-[var(--bg-tertiary)] text-[var(--fg-secondary)] mt-0.5">
+                  {event.status}
+                </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[var(--fg)]">{file.name}</p>
-                  {file.status === 'scanning' ? (
-                    <p className="text-sm text-[var(--fg-muted)]">Scanning...</p>
-                  ) : (
-                    <p className="text-sm text-[var(--fg-secondary)]">{file.message}</p>
-                  )}
+                  <p className="text-sm font-medium text-[var(--fg)]">{event.agentName}</p>
+                  <p className="text-sm text-[var(--fg-secondary)]">{event.message}</p>
                 </div>
               </div>
             ))}
@@ -582,7 +639,7 @@ function DependenciesSection() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-[var(--fg)] mb-2">Dependencies</h1>
-        <p className="text-[var(--fg-secondary)]">View and manage your project dependencies.</p>
+        <p className="text-[var(--fg-secondary)]">View dependency scan coverage by repository.</p>
       </div>
       <div className="border border-[var(--border)] rounded-lg p-6 bg-[var(--bg)]">
         <p className="text-sm text-[var(--fg-muted)]">Connect a repository to view dependencies.</p>
@@ -591,7 +648,45 @@ function DependenciesSection() {
   );
 }
 
-function VulnerabilitiesSection() {
+function DependenciesSectionLive({ scans }: { scans: ScanSummary[] }) {
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-semibold text-[var(--fg)] mb-2">Dependencies</h1>
+        <p className="text-[var(--fg-secondary)]">View dependency scan coverage by repository.</p>
+      </div>
+      <div className="border border-[var(--border)] rounded-lg p-6 bg-[var(--bg)]">
+        {scans.length === 0 ? (
+          <p className="text-sm text-[var(--fg-muted)]">No scan data available yet. Start a scan in the Demo section.</p>
+        ) : (
+          <div className="space-y-3">
+            {scans.slice(0, 8).map((scan) => (
+              <div key={scan.id} className="flex items-center justify-between py-2 border-b border-[var(--border-light)] last:border-0">
+                <div>
+                  <p className="text-sm font-medium text-[var(--fg)]">{scan.repo}</p>
+                  <p className="text-xs text-[var(--fg-muted)]">{new Date(scan.createdAt).toLocaleString()}</p>
+                </div>
+                <p className="text-sm text-[var(--fg-secondary)]">{scan.vulnCount} vulnerabilities / {scan.fixedCount} fixed</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VulnerabilitiesSection({ scans }: { scans: ScanSummary[] }) {
+  const vulnerabilities = scans.flatMap((scan) =>
+    (scan.vulnerabilities || []).map((vuln, idx) => ({
+      id: `${scan.id}-${vuln.cveId || vuln.pkgName || idx}`,
+      repo: scan.repo,
+      cveId: vuln.cveId || 'Unknown CVE',
+      pkgName: vuln.pkgName || 'Unknown package',
+      severity: vuln.severity || 'UNKNOWN',
+    }))
+  );
+
   return (
     <div className="space-y-8">
       <div>
@@ -599,7 +694,21 @@ function VulnerabilitiesSection() {
         <p className="text-[var(--fg-secondary)]">Track and remediate security vulnerabilities.</p>
       </div>
       <div className="border border-[var(--border)] rounded-lg p-6 bg-[var(--bg)]">
-        <p className="text-sm text-[var(--fg-muted)]">No vulnerabilities detected. Run a scan to check.</p>
+        {vulnerabilities.length === 0 ? (
+          <p className="text-sm text-[var(--fg-muted)]">No vulnerabilities detected. Run a scan to check.</p>
+        ) : (
+          <div className="space-y-3">
+            {vulnerabilities.slice(0, 12).map((vulnerability) => (
+              <div key={vulnerability.id} className="flex items-start justify-between py-2 border-b border-[var(--border-light)] last:border-0 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-[var(--fg)]">{vulnerability.cveId}</p>
+                  <p className="text-sm text-[var(--fg-secondary)]">{vulnerability.pkgName} in {vulnerability.repo}</p>
+                </div>
+                <span className="text-xs px-2 py-1 rounded-full bg-[var(--bg-tertiary)] text-[var(--fg-secondary)]">{vulnerability.severity}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -638,7 +747,7 @@ function AgentsSection() {
   );
 }
 
-function ActivitySection() {
+function ActivitySection({ runEvents }: { runEvents: RunEvent[] }) {
   return (
     <div className="space-y-8">
       <div>
@@ -646,7 +755,18 @@ function ActivitySection() {
         <p className="text-[var(--fg-secondary)]">Recent agent activity and events.</p>
       </div>
       <div className="border border-[var(--border)] rounded-lg p-6 bg-[var(--bg)]">
-        <p className="text-sm text-[var(--fg-muted)]">No recent activity. Start a scan to see agent events.</p>
+        {runEvents.length === 0 ? (
+          <p className="text-sm text-[var(--fg-muted)]">No recent activity. Start a scan to see agent events.</p>
+        ) : (
+          <div className="space-y-3">
+            {runEvents.slice().reverse().slice(0, 12).map((event) => (
+              <div key={event.id} className="flex items-start gap-3 py-2 border-b border-[var(--border-light)] last:border-0">
+                <span className="text-xs text-[var(--fg-muted)] w-40 shrink-0">{new Date(event.timestamp).toLocaleString()}</span>
+                <span className="text-sm text-[var(--fg-secondary)]">[{event.agentName}] {event.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -658,6 +778,91 @@ export default function App() {
   const [currentSection, setCurrentSection] = useState<Section>('overview');
   const [isLoading, setIsLoading] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [repoUrl, setRepoUrl] = useState('');
+  const [isStartingScan, setIsStartingScan] = useState(false);
+  const [isFetchingData, setIsFetchingData] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [scans, setScans] = useState<ScanSummary[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleConfig[]>([]);
+  const [settings, setSettings] = useState<AppSettings>({ webhookUrl: '', email: '' });
+  const [currentRun, setCurrentRun] = useState<Run | null>(null);
+  const [runEvents, setRunEvents] = useState<RunEvent[]>([]);
+
+  const getErrorMessage = (error: any) => {
+    return error?.response?.data?.error || error?.message || 'Unknown error';
+  };
+
+  const fetchRun = async (id: string) => {
+    try {
+      const [runRes, eventsRes] = await Promise.all([
+        fixstackApi.getRun(id),
+        fixstackApi.getEvents(id),
+      ]);
+      setCurrentRun(runRes.data);
+      setRunEvents(eventsRes.data);
+    } catch (error: any) {
+      setApiError(getErrorMessage(error));
+    }
+  };
+
+  const fetchData = async () => {
+    setIsFetchingData(true);
+    setApiError(null);
+    try {
+      const [scansRes, schedulesRes, settingsRes] = await Promise.all([
+        fixstackApi.getScans(),
+        fixstackApi.getSchedules(),
+        fixstackApi.getSettings(),
+      ]);
+
+      const nextScans = Array.isArray(scansRes.data) ? scansRes.data : [];
+      setScans(nextScans);
+      setSchedules(Array.isArray(schedulesRes.data) ? schedulesRes.data : []);
+      setSettings(settingsRes.data || { webhookUrl: '', email: '' });
+
+      if (nextScans.length > 0 && !currentRun) {
+        const latestRunId = nextScans[0].runId || nextScans[0].id;
+        if (latestRunId) await fetchRun(latestRunId);
+      }
+    } catch (error: any) {
+      setApiError(getErrorMessage(error));
+    } finally {
+      setIsFetchingData(false);
+    }
+  };
+
+  const startScan = async (repoUrl: string) => {
+    setIsStartingScan(true);
+    setApiError(null);
+    try {
+      const response = await fixstackApi.startScan(repoUrl);
+      const runId = response.data?.runId;
+      await fetchData();
+      if (runId) {
+        await fetchRun(runId);
+      }
+    } catch (error: any) {
+      setApiError(getErrorMessage(error));
+    } finally {
+      setIsStartingScan(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (!currentRun) return;
+    if (currentRun.status === 'COMPLETED' || currentRun.status === 'FAILED') return;
+
+    const interval = setInterval(() => {
+      fetchRun(currentRun.id);
+      fetchData();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [currentRun?.id, currentRun?.status]);
 
   const navigateTo = (section: Section) => {
     if (section === currentSection) return;
@@ -675,16 +880,48 @@ export default function App() {
     if (isLoading) return <Loader />;
 
     switch (currentSection) {
-      case 'overview': return <OverviewSection />;
+      case 'overview':
+        return (
+          <OverviewSection
+            scans={scans}
+            schedules={schedules}
+            settings={settings}
+            currentRun={currentRun}
+            isFetchingData={isFetchingData}
+            apiError={apiError}
+            onRefresh={fetchData}
+          />
+        );
       case 'how-it-works': return <HowItWorksSection />;
-      case 'demo': return <DemoSection />;
+      case 'demo':
+        return (
+          <DemoSection
+            repoUrl={repoUrl}
+            setRepoUrl={setRepoUrl}
+            onStartScan={startScan}
+            isStartingScan={isStartingScan}
+            currentRun={currentRun}
+            runEvents={runEvents}
+          />
+        );
       case 'about': return <AboutSection />;
       case 'contact': return <ContactSection />;
-      case 'dependencies': return <DependenciesSection />;
-      case 'vulnerabilities': return <VulnerabilitiesSection />;
+      case 'dependencies': return <DependenciesSectionLive scans={scans} />;
+      case 'vulnerabilities': return <VulnerabilitiesSection scans={scans} />;
       case 'agents': return <AgentsSection />;
-      case 'activity': return <ActivitySection />;
-      default: return <OverviewSection />;
+      case 'activity': return <ActivitySection runEvents={runEvents} />;
+      default:
+        return (
+          <OverviewSection
+            scans={scans}
+            schedules={schedules}
+            settings={settings}
+            currentRun={currentRun}
+            isFetchingData={isFetchingData}
+            apiError={apiError}
+            onRefresh={fetchData}
+          />
+        );
     }
   };
 
