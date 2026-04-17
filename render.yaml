@@ -3,11 +3,13 @@ services:
     name: fixstack-backend
     env: node
     plan: free
-    buildCommand: rm -rf node_modules && npm install && npm run build
-    startCommand: npm start
+    buildCommand: npm install
+    startCommand: node -r ts-node/register src/server.ts
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      - key: TS_NODE_TRANSPILE_ONLY
+        value: "true"
     healthCheckPath: /health
