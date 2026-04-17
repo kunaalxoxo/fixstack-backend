@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import { fixstackApi } from './api';
 import { Run, RunEvent } from './types';
 import {
@@ -6,8 +7,44 @@ import {
   ArrowRight, Activity, Box, XCircle, LogOut, Settings as SettingsIcon,
   Calendar, Building, Bell, LayoutDashboard, Brain, Flame, Info, Search,
   Trash2, Copy, PlayCircle, Zap, Check, Skull, AlertTriangle, RefreshCw, Menu, Lock, Eye, EyeOff,
-  ChevronRight, Terminal, Sparkles, Shield as ShieldIcon
+  ChevronRight, Terminal, Sparkles
 } from 'lucide-react';
+
+// ─── Animation Variants ────────────────────────────────────────────────────────
+
+const fadeInUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } }
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08, delayChildren: 0.1 }
+  }
+};
+
+const scaleIn = {
+  hidden: { opacity: 0, scale: 0.9 },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } }
+};
+
+const slideInRight = {
+  hidden: { opacity: 0, x: -20 },
+  visible: { opacity: 1, x: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } }
+};
+
+const glowPulse = {
+  animate: {
+    boxShadow: [
+      '0 0 20px -5px rgba(0, 255, 140, 0.3)',
+      '0 0 40px -5px rgba(0, 255, 140, 0.5)',
+      '0 0 20px -5px rgba(0, 255, 140, 0.3)',
+    ],
+    transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' }
+  }
+};
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -43,7 +80,107 @@ const AnimatedNumber = ({ value }: { value: number }) => {
     }, 30);
     return () => clearInterval(t);
   }, [value]);
-  return <span>{disp}</span>;
+  return <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>{disp}</motion.span>;
+};
+
+// Animated background orbs
+const BackgroundOrbs = () => (
+  <div className="fixed inset-0 overflow-hidden pointer-events-none">
+    <motion.div
+      className="orb-glow"
+      style={{ width: 600, height: 600, background: 'var(--lime)', top: '-20%', left: '-10%' }}
+      animate={{ x: [0, 50, 0], y: [0, 30, 0] }}
+      transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
+    />
+    <motion.div
+      className="orb-glow"
+      style={{ width: 400, height: 400, background: 'var(--cyan)', bottom: '10%', right: '-5%' }}
+      animate={{ x: [0, -30, 0], y: [0, -50, 0] }}
+      transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+    />
+    <motion.div
+      className="orb-glow"
+      style={{ width: 300, height: 300, background: 'var(--violet)', top: '40%', right: '20%' }}
+      animate={{ x: [0, 40, 0], y: [0, -20, 0] }}
+      transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
+    />
+  </div>
+);
+
+// Severity gauge visualization
+const SeverityGauge = ({ critical, high, medium, low }: { critical: number; high: number; medium: number; low: number }) => {
+  const total = critical + high + medium + low || 1;
+  const radius = 60;
+  const circumference = 2 * Math.PI * radius;
+  
+  const segments = [
+    { value: critical, color: 'var(--red)', label: 'Critical' },
+    { value: high, color: 'var(--orange)', label: 'High' },
+    { value: medium, color: 'var(--amber)', label: 'Medium' },
+    { value: low, color: 'var(--blue)', label: 'Low' },
+  ];
+
+  let offset = 0;
+  
+  return (
+    <div className="flex items-center gap-8">
+      <div className="relative" style={{ width: 150, height: 150 }}>
+        <svg width="150" height="150" viewBox="0 0 150 150">
+          <circle cx="75" cy="75" r={radius} fill="none" stroke="var(--border-dim)" strokeWidth="12" />
+          {segments.map((seg, i) => {
+            const segLength = (seg.value / total) * circumference;
+            const currentOffset = offset;
+            offset += segLength;
+            return (
+              <motion.circle
+                key={i}
+                cx="75"
+                cy="75"
+                r={radius}
+                fill="none"
+                stroke={seg.color}
+                strokeWidth="12"
+                strokeLinecap="round"
+                strokeDasharray={`${segLength} ${circumference}`}
+                strokeDashoffset={-currentOffset}
+                style={{ transformOrigin: 'center', transform: 'rotate(-90deg)' }}
+                initial={{ strokeDasharray: `0 ${circumference}` }}
+                animate={{ strokeDasharray: `${segLength} ${circumference}` }}
+                transition={{ duration: 1, delay: i * 0.15, ease: [0.22, 1, 0.36, 1] }}
+              />
+            );
+          })}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <motion.span
+            className="display text-3xl font-extrabold"
+            style={{ color: 'var(--fg)' }}
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            {total}
+          </motion.span>
+          <span className="text-xs uppercase tracking-wider" style={{ color: 'var(--fg-3)' }}>Total</span>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        {segments.map((seg, i) => (
+          <motion.div
+            key={i}
+            className="flex items-center gap-3"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.5 + i * 0.1 }}
+          >
+            <div className="w-3 h-3 rounded-full" style={{ background: seg.color, boxShadow: `0 0 10px ${seg.color}40` }} />
+            <span className="text-sm" style={{ color: 'var(--fg-2)' }}>{seg.label}</span>
+            <span className="font-mono font-bold" style={{ color: seg.color }}>{seg.value}</span>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 type GithubRepo = { id: number; full_name: string; html_url: string; private: boolean };
@@ -65,7 +202,7 @@ const getAgentMeta = (name: string) => AGENT_META[name] || { initials: name.slic
 
 // ─── Timeline Event Card ───────────────────────────────────────────────────────
 
-const TimelineEventCard = ({ event, run }: { event: RunEvent; run: Run }) => {
+const TimelineEventCard = ({ event, run, index }: { event: RunEvent; run: Run; index: number }) => {
   const isPR = event.agentName === 'GitHub PR Agent' && event.toolName === 'PR Created';
   const isRetryWarn = event.agentName === 'Retry Controller' && event.status === 'WARNING';
   const isRetryOk = event.agentName === 'Retry Controller' && event.status === 'SUCCESS';
@@ -78,33 +215,60 @@ const TimelineEventCard = ({ event, run }: { event: RunEvent; run: Run }) => {
     return `${Math.floor(s / 60)}m ago`;
   };
 
-  const cardClass = isPR ? 'pr-card animate-slide-up' :
-    isRetryWarn ? 'event-card retry-warn animate-slide-up' :
-    isRetryOk   ? 'event-card retry-success animate-slide-up' :
-    `event-card status-${event.status.toLowerCase()} animate-slide-up`;
+  const cardClass = isPR ? 'pr-card' :
+    isRetryWarn ? 'event-card retry-warn' :
+    isRetryOk   ? 'event-card retry-success' :
+    `event-card status-${event.status.toLowerCase()}`;
 
   return (
-    <div className="relative flex items-start gap-4 mb-5">
+    <motion.div
+      className="relative flex items-start gap-4 mb-5"
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.05, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+    >
       {/* Avatar */}
-      <div className="agent-avatar shrink-0" style={{ background: meta.bg }}>
+      <motion.div
+        className="agent-avatar shrink-0"
+        style={{ background: meta.bg }}
+        whileHover={{ scale: 1.1 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+      >
         {meta.initials}
-      </div>
+      </motion.div>
 
       {/* Card */}
-      <div className={`flex-1 ${cardClass} p-4`} style={{ borderRadius: '12px' }}>
+      <motion.div
+        className={`flex-1 ${cardClass} p-4`}
+        style={{ borderRadius: '14px' }}
+        whileHover={{ x: 4 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+      >
         {isPR ? (
           <div style={{ position: 'relative', zIndex: 1 }}>
-            <p className="display" style={{ fontSize: '20px', fontWeight: 800, color: 'var(--lime)', marginBottom: '8px' }}>
-              ✦ Pull Request Created
-            </p>
+            <motion.p
+              className="display"
+              style={{ fontSize: '20px', fontWeight: 800, color: 'var(--lime)', marginBottom: '8px' }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Sparkles className="inline mr-2" size={18} /> Pull Request Created
+            </motion.p>
             <p style={{ color: 'var(--fg-2)', marginBottom: '20px', fontSize: '14px' }}>{event.message}</p>
             {run.prUrl && (
-              <a href={run.prUrl} target="_blank" rel="noopener noreferrer">
-                <button className="btn-lime" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', fontSize: '13px' }}>
+              <motion.a
+                href={run.prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <button className="btn-lime" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '12px', fontSize: '13px' }}>
                   <Github size={16} /> View PR on GitHub
                   <ArrowRight size={14} />
                 </button>
-              </a>
+              </motion.a>
             )}
           </div>
         ) : (
@@ -114,7 +278,7 @@ const TimelineEventCard = ({ event, run }: { event: RunEvent; run: Run }) => {
               <span className="chip display" style={{ fontFamily: 'var(--font-display)', fontSize: '10px', letterSpacing: '0.08em', background: meta.bg + '22', color: 'var(--fg)', borderColor: meta.bg + '44' }}>
                 {event.agentName}
               </span>
-              <span className="mono" style={{ fontSize: '12px', color: 'var(--fg-3)' }}>→</span>
+              <span className="mono" style={{ fontSize: '12px', color: 'var(--fg-3)' }}>-&gt;</span>
               <span className="mono" style={{ fontSize: '12px', color: 'var(--fg-2)' }}>{event.toolName}</span>
               <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--fg-3)', fontFamily: 'var(--font-mono)' }}>{relativeTime(event.timestamp)}</span>
             </div>
@@ -131,14 +295,19 @@ const TimelineEventCard = ({ event, run }: { event: RunEvent; run: Run }) => {
 
             {/* Context analyst confidence */}
             {isContext && event.metadata?.confidence && (
-              <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <motion.div
+                style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
                 <span className={`chip ${event.metadata.confidence === 'HIGH' ? 'badge-lime' : event.metadata.confidence === 'MEDIUM' ? 'badge-medium' : 'badge-high'}`}>
                   {event.metadata.confidence} CONF
                 </span>
                 {event.metadata.affectedFiles?.length > 0 && (
                   <span className="chip">{event.metadata.affectedFiles.length} files</span>
                 )}
-              </div>
+              </motion.div>
             )}
 
             {/* Generic metadata */}
@@ -155,8 +324,8 @@ const TimelineEventCard = ({ event, run }: { event: RunEvent; run: Run }) => {
             )}
           </>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
@@ -200,6 +369,22 @@ export default function App() {
 
   const pollInterval = useRef<number | null>(null);
   const duration = useRunDuration(currentRun);
+
+  // Mouse tracking for interactive effects
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const springConfig = { damping: 25, stiffness: 150 };
+  const mouseXSpring = useSpring(mouseX, springConfig);
+  const mouseYSpring = useSpring(mouseY, springConfig);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseX.set(e.clientX);
+      mouseY.set(e.clientY);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   // ─── Toast helper ───────────────────────────────────────────────────────────
   const addToast = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
@@ -298,7 +483,7 @@ export default function App() {
   const startScan = async (isDemo = false, selectedRepoUrl?: string) => {
     const finalUrl = selectedRepoUrl || repoUrl;
     if (!isDemo && !validateUrl(finalUrl)) {
-      setError('Enter a valid GitHub URL (https://github.com/…)');
+      setError('Enter a valid GitHub URL (https://github.com/...)');
       return;
     }
     setIsLoading(true); setError(null); setCurrentRun(null); setEvents([]);
@@ -360,8 +545,8 @@ export default function App() {
   const saveSchedule = async () => {
     if (!validateUrl(scheduleRepo)) { addToast('Invalid GitHub URL', 'error'); return; }
     const dom = scheduleDayOfMonth.trim() || '*', mon = scheduleMonth.trim() || '*';
-    if (!isWildcardOrInRange(dom, 1, 31)) { addToast('Day must be * or 1–31', 'error'); return; }
-    if (!isWildcardOrInRange(mon, 1, 12)) { addToast('Month must be * or 1–12', 'error'); return; }
+    if (!isWildcardOrInRange(dom, 1, 31)) { addToast('Day must be * or 1-31', 'error'); return; }
+    if (!isWildcardOrInRange(mon, 1, 12)) { addToast('Month must be * or 1-12', 'error'); return; }
     if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(scheduleTime)) { addToast('Time must be HH:MM', 'error'); return; }
     const [h = '00', m = '00'] = scheduleTime.split(':');
     try {
@@ -438,7 +623,7 @@ export default function App() {
     return <Info size={12} />;
   };
 
-  const formatCron = (c: string) => ({ '0 0 * * *': 'Daily at midnight', '0 0 * * 0': 'Weekly — Sunday', '0 0 * * 1': 'Weekly — Monday', '0 * * * *': 'Every hour' }[c] || c);
+  const formatCron = (c: string) => ({ '0 0 * * *': 'Daily at midnight', '0 0 * * 0': 'Weekly - Sunday', '0 0 * * 1': 'Weekly - Monday', '0 * * * *': 'Every hour' }[c] || c);
 
   const tabs = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -455,73 +640,130 @@ export default function App() {
   if (!isAuthenticated) {
     return (
       <div className="login-bg bg-grid scanline-effect" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div className="animate-fade-in" style={{ width: '100%', maxWidth: '440px' }}>
+        <BackgroundOrbs />
+        
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          style={{ width: '100%', maxWidth: '440px', position: 'relative', zIndex: 10 }}
+        >
 
           {/* Logo */}
-          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '56px', height: '56px', borderRadius: '16px', background: 'var(--lime-dim)', border: '1px solid var(--border-lime)', marginBottom: '20px', boxShadow: '0 0 32px var(--lime-glow)' }} className="animate-float">
-              <Shield size={26} style={{ color: 'var(--lime)' }} />
-            </div>
-            <h1 className="display gradient-text" style={{ fontSize: '32px', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
-              FixStack
+          <motion.div
+            style={{ textAlign: 'center', marginBottom: '40px' }}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+          >
+            <motion.div
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '64px', height: '64px', borderRadius: '18px', background: 'var(--lime-dim)', border: '1px solid var(--border-lime)', marginBottom: '24px' }}
+              animate={{ 
+                boxShadow: ['0 0 30px var(--lime-glow)', '0 0 50px var(--lime-glow-strong)', '0 0 30px var(--lime-glow)'],
+                y: [0, -8, 0]
+              }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <Shield size={28} style={{ color: 'var(--lime)' }} />
+            </motion.div>
+            <h1 className="display" style={{ fontSize: '36px', fontWeight: 800, margin: 0, letterSpacing: '-0.03em' }}>
+              <span className="gradient-text">FixStack</span>
             </h1>
-            <p style={{ color: 'var(--fg-3)', marginTop: '6px', fontSize: '13px' }}>
+            <p style={{ color: 'var(--fg-3)', marginTop: '8px', fontSize: '14px' }}>
               Autonomous dependency security agent
             </p>
-          </div>
+          </motion.div>
 
           {/* Card */}
-          <div className="glass-card" style={{ borderRadius: '20px', padding: '32px' }}>
-            <p className="section-heading" style={{ marginBottom: '20px' }}>Connect GitHub</p>
+          <motion.div
+            className="glass-card gradient-border"
+            style={{ borderRadius: '24px', padding: '36px' }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            <p className="section-heading" style={{ marginBottom: '24px' }}>Connect GitHub</p>
 
-            <form onSubmit={handleGithubLogin} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <form onSubmit={handleGithubLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ position: 'relative' }}>
-                <Lock size={15} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)' }} />
-                <input
+                <Lock size={15} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)' }} />
+                <motion.input
                   type={showLoginPat ? 'text' : 'password'}
                   value={githubToken}
                   onChange={e => setGithubToken(e.target.value)}
                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
                   autoFocus
                   className="input-void input-mono"
-                  style={{ width: '100%', padding: '12px 44px', borderRadius: '10px', fontSize: '13px' }}
+                  style={{ width: '100%', padding: '14px 48px', borderRadius: '12px', fontSize: '13px' }}
+                  whileFocus={{ scale: 1.01 }}
                 />
-                <button type="button" onClick={() => setShowLoginPat(v => !v)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                <button type="button" onClick={() => setShowLoginPat(v => !v)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
                   {showLoginPat ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
 
-              <button type="submit" disabled={isRepoLoading} className="btn-lime" style={{ padding: '13px', borderRadius: '10px', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: isRepoLoading ? 'not-allowed' : 'pointer', opacity: isRepoLoading ? 0.7 : 1 }}>
-                {isRepoLoading ? <><Loader2 size={15} className="animate-spin" /> Connecting…</> : <><Github size={15} /> Connect GitHub</>}
-              </button>
+              <motion.button
+                type="submit"
+                disabled={isRepoLoading}
+                className="btn-lime"
+                style={{ padding: '15px', borderRadius: '12px', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', cursor: isRepoLoading ? 'not-allowed' : 'pointer', opacity: isRepoLoading ? 0.7 : 1 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {isRepoLoading ? <><Loader2 size={16} className="animate-spin" /> Connecting...</> : <><Github size={16} /> Connect GitHub</>}
+              </motion.button>
             </form>
 
             {/* Features */}
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '24px', justifyContent: 'center' }}>
-              {['CVE Detection', 'AI Context', 'Auto PRs', 'Self-Correcting'].map(f => (
-                <span key={f} className="chip" style={{ fontSize: '11px' }}>
+            <motion.div
+              style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '28px', justifyContent: 'center' }}
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+            >
+              {['CVE Detection', 'AI Context', 'Auto PRs', 'Self-Correcting'].map((f, i) => (
+                <motion.span
+                  key={f}
+                  className="chip"
+                  style={{ fontSize: '11px' }}
+                  variants={fadeInUp}
+                >
                   <span style={{ color: 'var(--lime)', fontSize: '8px' }}>●</span> {f}
-                </span>
+                </motion.span>
               ))}
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
 
-          <p style={{ textAlign: 'center', marginTop: '16px', fontSize: '12px', color: 'var(--fg-3)' }}>
-            Requires a PAT with <code style={{ color: 'var(--fg-2)', fontSize: '11px' }}>repo</code> scope.{' '}
+          <motion.p
+            style={{ textAlign: 'center', marginTop: '20px', fontSize: '12px', color: 'var(--fg-3)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+          >
+            Requires a PAT with <code style={{ color: 'var(--fg-2)', fontSize: '11px', background: 'var(--surface)', padding: '2px 6px', borderRadius: '4px' }}>repo</code> scope.{' '}
             <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--lime)', textDecoration: 'none' }}>
-              Generate one →
+              Generate one -&gt;
             </a>
-          </p>
-        </div>
+          </motion.p>
+        </motion.div>
 
         {/* Toasts */}
         <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {toasts.map(t => (
-            <div key={t.id} className={`toast toast-${t.type} animate-slide-up`}>
-              {t.type === 'error' ? <AlertCircle size={14} /> : t.type === 'success' ? <CheckCircle2 size={14} /> : <Info size={14} />}
-              {t.message}
-            </div>
-          ))}
+          <AnimatePresence>
+            {toasts.map(t => (
+              <motion.div
+                key={t.id}
+                className={`toast toast-${t.type}`}
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 50 }}
+                transition={{ duration: 0.3 }}
+              >
+                {t.type === 'error' ? <AlertCircle size={14} /> : t.type === 'success' ? <CheckCircle2 size={14} /> : <Info size={14} />}
+                {t.message}
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       </div>
     );
@@ -532,32 +774,45 @@ export default function App() {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', background: 'var(--void)', display: 'flex' }}>
+      <BackgroundOrbs />
 
       {/* Mobile overlay */}
-      {sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 40, backdropFilter: 'blur(4px)' }} />}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div
+            onClick={() => setSidebarOpen(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 40, backdropFilter: 'blur(8px)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ─── SIDEBAR ─────────────────────────────────────────────────────── */}
-      <aside style={{
-        position: 'fixed', inset: '0 auto 0 0',
-        width: sidebarOpen ? '264px' : '0',
-        zIndex: 50,
-        background: 'rgba(6, 8, 16, 0.95)',
-        backdropFilter: 'blur(24px)',
-        borderRight: '1px solid var(--border-dim)',
-        display: 'flex', flexDirection: 'column',
-        transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-        overflow: 'hidden',
-      }} className="md-sidebar">
-        {/* Desktop: always show, 72px or 264px */}
+      <motion.aside
+        style={{
+          position: 'fixed', inset: '0 auto 0 0',
+          width: sidebarOpen ? '280px' : '0',
+          zIndex: 50,
+          background: 'linear-gradient(180deg, rgba(4, 6, 16, 0.98) 0%, rgba(8, 12, 26, 0.98) 100%)',
+          backdropFilter: 'blur(40px)',
+          borderRight: '1px solid var(--border-dim)',
+          display: 'flex', flexDirection: 'column',
+          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          overflow: 'hidden',
+        }}
+        className="md-sidebar"
+      >
         <style>{`
           @media (min-width: 768px) {
-            .md-sidebar { width: 72px !important; }
+            .md-sidebar { width: 80px !important; }
           }
           @media (min-width: 1200px) {
-            .md-sidebar { width: 264px !important; }
+            .md-sidebar { width: 280px !important; }
           }
           @media (max-width: 767px) {
-            .md-sidebar { width: ${sidebarOpen ? '264px' : '0'} !important; }
+            .md-sidebar { width: ${sidebarOpen ? '280px' : '0'} !important; }
           }
           .sidebar-label { display: none; }
           @media (min-width: 1200px) { .sidebar-label { display: inline; } }
@@ -565,41 +820,68 @@ export default function App() {
         `}</style>
 
         {/* Logo */}
-        <div style={{ padding: '20px 16px', borderBottom: '1px solid var(--border-void)', display: 'flex', alignItems: 'center', gap: '12px', minHeight: '64px' }}>
-          <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--lime-dim)', border: '1px solid var(--border-lime)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 0 16px var(--lime-glow)' }}>
-            <Shield size={17} style={{ color: 'var(--lime)' }} />
-          </div>
-          <span className="display sidebar-label" style={{ fontWeight: 800, fontSize: '17px', color: 'var(--fg)', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+        <div style={{ padding: '24px 20px', borderBottom: '1px solid var(--border-void)', display: 'flex', alignItems: 'center', gap: '14px', minHeight: '72px' }}>
+          <motion.div
+            style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'var(--lime-dim)', border: '1px solid var(--border-lime)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            whileHover={{ scale: 1.05 }}
+            animate={{ boxShadow: ['0 0 20px var(--lime-glow)', '0 0 30px var(--lime-glow-strong)', '0 0 20px var(--lime-glow)'] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            <Shield size={18} style={{ color: 'var(--lime)' }} />
+          </motion.div>
+          <span className="display sidebar-label" style={{ fontWeight: 800, fontSize: '18px', color: 'var(--fg)', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
             Fix<span style={{ color: 'var(--lime)' }}>Stack</span>
           </span>
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-          {tabs.map(tab => (
-            <button key={tab.id} onClick={() => { setCurrentTab(tab.id); setSidebarOpen(false); }} className={`nav-item ${currentTab === tab.id ? 'active' : ''}`}>
-              <tab.icon size={17} style={{ flexShrink: 0 }} />
-              <span className="sidebar-label" style={{ whiteSpace: 'nowrap', fontSize: '13.5px' }}>{tab.label}</span>
-            </button>
+        <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {tabs.map((tab, i) => (
+            <motion.button
+              key={tab.id}
+              onClick={() => { setCurrentTab(tab.id); setSidebarOpen(false); }}
+              className={`nav-item ${currentTab === tab.id ? 'active' : ''}`}
+              whileHover={{ x: 4 }}
+              whileTap={{ scale: 0.98 }}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.05 }}
+            >
+              <tab.icon size={18} style={{ flexShrink: 0 }} />
+              <span className="sidebar-label" style={{ whiteSpace: 'nowrap', fontSize: '14px' }}>{tab.label}</span>
+            </motion.button>
           ))}
         </nav>
 
         {/* Running indicator */}
-        {currentRun?.status === 'RUNNING' && (
-          <div style={{ margin: '0 10px 8px', padding: '10px 12px', borderRadius: '10px', background: 'var(--lime-dim)', border: '1px solid var(--border-lime)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div className="running-dot" />
-            <span className="sidebar-label mono" style={{ fontSize: '11px', color: 'var(--lime)', whiteSpace: 'nowrap' }}>Scan running…</span>
-          </div>
-        )}
+        <AnimatePresence>
+          {currentRun?.status === 'RUNNING' && (
+            <motion.div
+              style={{ margin: '0 12px 10px', padding: '12px 14px', borderRadius: '12px', background: 'var(--lime-dim)', border: '1px solid var(--border-lime)', display: 'flex', alignItems: 'center', gap: '12px' }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+            >
+              <div className="running-dot" />
+              <span className="sidebar-label mono" style={{ fontSize: '11px', color: 'var(--lime)', whiteSpace: 'nowrap' }}>Scan running...</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Logout */}
-        <div style={{ padding: '10px', borderTop: '1px solid var(--border-void)' }}>
-          <button onClick={handleLogout} className="nav-item" style={{ width: '100%' }}>
-            <LogOut size={16} style={{ flexShrink: 0 }} />
+        <div style={{ padding: '12px', borderTop: '1px solid var(--border-void)' }}>
+          <motion.button
+            onClick={handleLogout}
+            className="nav-item"
+            style={{ width: '100%' }}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <LogOut size={17} style={{ flexShrink: 0 }} />
             <span className="sidebar-label" style={{ whiteSpace: 'nowrap' }}>Disconnect</span>
-          </button>
+          </motion.button>
         </div>
-      </aside>
+      </motion.aside>
 
       {/* ─── MAIN CONTENT ────────────────────────────────────────────────── */}
       <main style={{
@@ -607,683 +889,984 @@ export default function App() {
         marginLeft: 0,
         padding: '24px 20px',
         minHeight: '100vh',
+        position: 'relative',
+        zIndex: 10,
       }} className="main-content">
         <style>{`
-          @media (min-width: 768px) { .main-content { margin-left: 72px !important; padding: 28px 32px !important; } }
-          @media (min-width: 1200px) { .main-content { margin-left: 264px !important; padding: 32px 40px !important; } }
+          @media (min-width: 768px) { .main-content { margin-left: 80px !important; padding: 32px 36px !important; } }
+          @media (min-width: 1200px) { .main-content { margin-left: 280px !important; padding: 36px 48px !important; } }
         `}</style>
 
         {/* Mobile top bar */}
-        <div className="mobile-bar" style={{ display: 'none', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+        <div className="mobile-bar" style={{ display: 'none', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
           <style>{`.mobile-bar { display: flex !important; } @media (min-width: 768px) { .mobile-bar { display: none !important; } }`}</style>
-          <button onClick={() => setSidebarOpen(true)} style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--border-dim)', background: 'var(--raised)', color: 'var(--fg-2)' }}>
-            <Menu size={17} />
-          </button>
-          <span className="display" style={{ fontWeight: 700, fontSize: '16px' }}>Fix<span style={{ color: 'var(--lime)' }}>Stack</span></span>
-          <button onClick={handleLogout} style={{ padding: '8px', background: 'none', border: 'none', color: 'var(--fg-3)' }}><LogOut size={17} /></button>
+          <motion.button
+            onClick={() => setSidebarOpen(true)}
+            style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-dim)', background: 'var(--raised)', color: 'var(--fg-2)' }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Menu size={18} />
+          </motion.button>
+          <span className="display" style={{ fontWeight: 700, fontSize: '17px' }}>Fix<span style={{ color: 'var(--lime)' }}>Stack</span></span>
+          <motion.button onClick={handleLogout} style={{ padding: '10px', background: 'none', border: 'none', color: 'var(--fg-3)' }} whileTap={{ scale: 0.95 }}><LogOut size={18} /></motion.button>
         </div>
 
         {/* ══════════════════════════════ DASHBOARD ══════════════════════════════ */}
-        {currentTab === 'dashboard' && !currentRun && (
-          <div className="animate-fade-in" style={{ maxWidth: '900px' }}>
+        <AnimatePresence mode="wait">
+          {currentTab === 'dashboard' && !currentRun && (
+            <motion.div
+              key="dashboard-home"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{ maxWidth: '960px' }}
+            >
 
-            {/* Hero */}
-            <div style={{ marginBottom: '32px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                <span className="chip badge-lime"><Sparkles size={10} /> v1.0 LIVE</span>
-                <span className="chip">Groq + OSV.dev + NVD</span>
-              </div>
-              <h1 className="display" style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 800, lineHeight: 1.15, letterSpacing: '-0.025em', margin: 0 }}>
-                Autonomous Dependency<br />
-                <span className="gradient-text">Security Agent</span>
-              </h1>
-              <p style={{ color: 'var(--fg-2)', marginTop: '12px', fontSize: '15px', maxWidth: '540px', lineHeight: 1.65 }}>
-                Scans repos, analyzes exploitability with AI context, and ships remediation PRs — automatically.
-              </p>
-            </div>
+              {/* Hero */}
+              <motion.div
+                style={{ marginBottom: '40px' }}
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
+                <motion.div variants={fadeInUp} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                  <span className="chip badge-lime"><Sparkles size={10} /> v1.0 LIVE</span>
+                  <span className="chip">Groq + OSV.dev + NVD</span>
+                </motion.div>
+                <motion.h1
+                  className="display"
+                  style={{ fontSize: 'clamp(32px, 5vw, 52px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.03em', margin: 0 }}
+                  variants={fadeInUp}
+                >
+                  Autonomous Dependency<br />
+                  <span className="gradient-text">Security Agent</span>
+                </motion.h1>
+                <motion.p
+                  style={{ color: 'var(--fg-2)', marginTop: '16px', fontSize: '16px', maxWidth: '560px', lineHeight: 1.7 }}
+                  variants={fadeInUp}
+                >
+                  Scans repos, analyzes exploitability with AI context, and ships remediation PRs - automatically.
+                </motion.p>
+              </motion.div>
 
-            {/* Scan cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              {/* Scan cards */}
+              <motion.div
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '28px' }}
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
 
-              {/* Repo scan */}
-              <div className="glass-card" style={{ borderRadius: '16px', padding: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(37,99,235,0.15)', border: '1px solid rgba(37,99,235,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Github size={15} style={{ color: '#4D9EFF' }} />
+                {/* Repo scan */}
+                <motion.div className="glass-card" style={{ borderRadius: '20px', padding: '28px' }} variants={scaleIn} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 300 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(37,99,235,0.15)', border: '1px solid rgba(37,99,235,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Github size={16} style={{ color: '#3b82f6' }} />
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: 600, fontSize: '15px', margin: 0 }}>Repository Scan</p>
+                      <p style={{ fontSize: '12px', color: 'var(--fg-3)', margin: 0 }}>Select from your GitHub repos</p>
+                    </div>
                   </div>
-                  <div>
-                    <p style={{ fontWeight: 600, fontSize: '14px', margin: 0 }}>Repository Scan</p>
-                    <p style={{ fontSize: '11px', color: 'var(--fg-3)', margin: 0 }}>Select from your GitHub repos</p>
-                  </div>
-                </div>
 
-                {githubRepos.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <select
-                      value={selectedRepo}
-                      onChange={e => { const url = e.target.value; setSelectedRepo(url); if (url) { setRepoUrl(url); setError(null); startScan(false, url); } }}
+                  {githubRepos.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <select
+                        value={selectedRepo}
+                        onChange={e => { const url = e.target.value; setSelectedRepo(url); if (url) { setRepoUrl(url); setError(null); startScan(false, url); } }}
+                        disabled={isLoading}
+                        className="input-void"
+                        style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px', cursor: 'pointer' }}
+                      >
+                        <option value="">Select a repository...</option>
+                        {githubRepos.map(r => <option key={r.id} value={r.html_url}>{r.full_name}{r.private ? ' [private]' : ''}</option>)}
+                      </select>
+                      <motion.button
+                        onClick={() => loginWithGithubToken(githubToken)}
+                        disabled={isRepoLoading}
+                        className="btn-ghost"
+                        style={{ padding: '11px', borderRadius: '10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                      >
+                        {isRepoLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Refresh repos
+                      </motion.button>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '20px', borderRadius: '10px', background: 'var(--surface)', color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center' }}>
+                      No repositories found.
+                    </div>
+                  )}
+                </motion.div>
+
+                {/* Org scan */}
+                <motion.div className="glass-card" style={{ borderRadius: '20px', padding: '28px' }} variants={scaleIn} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 300 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Building size={16} style={{ color: 'var(--violet)' }} />
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: 600, fontSize: '15px', margin: 0 }}>Organization Scan</p>
+                      <p style={{ fontSize: '12px', color: 'var(--fg-3)', margin: 0 }}>Queue all public repos</p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <input
+                      type="text"
+                      placeholder="e.g. facebook"
+                      value={orgName}
+                      onChange={e => { setOrgName(e.target.value); setError(null); }}
                       disabled={isLoading}
                       className="input-void"
-                      style={{ width: '100%', padding: '11px 14px', borderRadius: '9px', fontSize: '13px', cursor: 'pointer' }}
+                      style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }}
+                    />
+                    <motion.button
+                      onClick={startOrgScan}
+                      disabled={isLoading || !orgName}
+                      className="btn-ghost"
+                      style={{ padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: isLoading || !orgName ? 'not-allowed' : 'pointer', opacity: isLoading || !orgName ? 0.5 : 1 }}
+                      whileHover={!isLoading && orgName ? { scale: 1.01 } : {}}
+                      whileTap={!isLoading && orgName ? { scale: 0.99 } : {}}
                     >
-                      <option value="">Select a repository…</option>
-                      {githubRepos.map(r => <option key={r.id} value={r.html_url}>{r.full_name}{r.private ? ' 🔒' : ''}</option>)}
-                    </select>
-                    <button onClick={() => loginWithGithubToken(githubToken)} disabled={isRepoLoading} className="btn-ghost" style={{ padding: '9px', borderRadius: '9px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}>
-                      {isRepoLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Refresh repos
-                    </button>
+                      {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} Queue Org Scan
+                    </motion.button>
                   </div>
-                ) : (
-                  <div style={{ padding: '16px', borderRadius: '8px', background: 'var(--surface)', color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center' }}>
-                    No repositories found.
-                  </div>
+                </motion.div>
+              </motion.div>
+
+              {/* Error */}
+              <AnimatePresence>
+                {error && (
+                  <motion.div
+                    style={{ padding: '14px 18px', borderRadius: '12px', background: 'var(--red-dim)', border: '1px solid rgba(255,68,102,0.3)', color: 'var(--red)', fontSize: '13px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                  >
+                    <AlertCircle size={15} /> {error}
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
 
-              {/* Org scan */}
-              <div className="glass-card" style={{ borderRadius: '16px', padding: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Building size={15} style={{ color: 'var(--violet)' }} />
+              {/* Demo + How it works */}
+              <motion.div
+                style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
+                <motion.button
+                  onClick={() => startScan(true)}
+                  disabled={isLoading}
+                  className="btn-lime"
+                  style={{ padding: '16px 28px', borderRadius: '14px', fontSize: '15px', display: 'inline-flex', alignItems: 'center', gap: '12px', cursor: isLoading ? 'not-allowed' : 'pointer', width: 'fit-content', opacity: isLoading ? 0.7 : 1 }}
+                  variants={fadeInUp}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Zap size={18} /> Run Live Demo - lodash + axios CVEs
+                </motion.button>
+
+                <motion.div className="glass-card" style={{ borderRadius: '20px', padding: '28px' }} variants={fadeInUp}>
+                  <p className="section-heading">How it works</p>
+                  <motion.div
+                    style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}
+                    variants={staggerContainer}
+                  >
+                    {[
+                      { icon: Box,      label: 'Fetch Deps',  desc: 'Parses manifests',     color: '#2563EB' },
+                      { icon: Search,   label: 'Scan CVEs',   desc: 'OSV.dev + NVD',        color: '#7C3AED' },
+                      { icon: Brain,    label: 'AI Context',  desc: 'Call graph analysis',  color: '#0891B2' },
+                      { icon: Github,   label: 'Open PR',     desc: 'Automated patch',       color: '#059669' },
+                    ].map((s, i) => (
+                      <motion.div
+                        key={s.label}
+                        variants={scaleIn}
+                        style={{ padding: '20px', borderRadius: '14px', background: 'var(--surface)', border: '1px solid var(--border-void)' }}
+                        whileHover={{ y: -4, borderColor: s.color + '44' }}
+                        transition={{ type: 'spring', stiffness: 300 }}
+                      >
+                        <div style={{ width: '32px', height: '32px', borderRadius: '9px', background: s.color + '22', border: `1px solid ${s.color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                          <s.icon size={15} style={{ color: s.color }} />
+                        </div>
+                        <p style={{ fontWeight: 600, fontSize: '14px', margin: '0 0 4px' }}>{s.label}</p>
+                        <p style={{ fontSize: '12px', color: 'var(--fg-3)', margin: 0 }}>{s.desc}</p>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                </motion.div>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* ══════════════════════════════ SCAN RUNNING / DONE ══════════════════════════════ */}
+          {currentTab === 'dashboard' && currentRun && (
+            <motion.div
+              key="dashboard-run"
+              style={{ maxWidth: '960px' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+
+              {/* Sticky run header */}
+              <motion.div
+                className="glass-card-raised"
+                style={{ position: 'sticky', top: 0, zIndex: 20, borderRadius: '18px', padding: '20px 24px', marginBottom: '28px' }}
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '18px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
+                    <div>
+                      <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', margin: '0 0 4px' }}>Repository</p>
+                      <p style={{ fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+                        <Github size={14} style={{ color: 'var(--fg-3)' }} /> {currentRun.input.repoName}
+                      </p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', margin: '0 0 4px' }}>Run ID</p>
+                      <p className="mono" style={{ margin: 0, fontSize: '12px', color: 'var(--fg-2)' }}>{currentRun.id.slice(0, 10)}</p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', margin: '0 0 4px' }}>Duration</p>
+                      <p className="mono" style={{ margin: 0, fontSize: '13px', color: 'var(--lime)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Clock size={12} /> {duration}s
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p style={{ fontWeight: 600, fontSize: '14px', margin: 0 }}>Organization Scan</p>
-                    <p style={{ fontSize: '11px', color: 'var(--fg-3)', margin: 0 }}>Queue all public repos</p>
-                  </div>
+                  <motion.span
+                    className={`chip ${currentRun.status === 'COMPLETED' ? 'badge-lime' : currentRun.status === 'FAILED' ? 'badge-critical' : 'badge-info'}`}
+                    style={{ fontSize: '11px', padding: '6px 14px', borderRadius: '99px' }}
+                    animate={currentRun.status === 'RUNNING' ? { scale: [1, 1.02, 1] } : {}}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  >
+                    {currentRun.status === 'RUNNING' && <span className="running-dot" style={{ width: '6px', height: '6px', marginRight: '8px' }} />}
+                    {currentRun.status}
+                  </motion.span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <input
-                    type="text"
-                    placeholder="e.g. facebook"
-                    value={orgName}
-                    onChange={e => { setOrgName(e.target.value); setError(null); }}
-                    disabled={isLoading}
-                    className="input-void"
-                    style={{ width: '100%', padding: '11px 14px', borderRadius: '9px', fontSize: '13px' }}
-                  />
-                  <button onClick={startOrgScan} disabled={isLoading || !orgName} className="btn-ghost" style={{ padding: '10px', borderRadius: '9px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: isLoading || !orgName ? 'not-allowed' : 'pointer', opacity: isLoading || !orgName ? 0.5 : 1 }}>
-                    {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} Queue Org Scan
-                  </button>
+
+                {/* Steps */}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {STEPS.map((step, i) => {
+                    const cur = getScanStep();
+                    return (
+                      <motion.div
+                        key={step}
+                        className={`scan-step ${i < cur || currentRun.status === 'COMPLETED' ? 'done' : i === cur && currentRun.status !== 'COMPLETED' ? 'active' : ''}`}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.1 }}
+                      >
+                        {(i < cur || currentRun.status === 'COMPLETED') ? <Check size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> : null}
+                        {step}
+                      </motion.div>
+                    );
+                  })}
                 </div>
-              </div>
-            </div>
+              </motion.div>
 
-            {/* Error */}
-            {error && (
-              <div style={{ padding: '12px 16px', borderRadius: '10px', background: 'var(--red-dim)', border: '1px solid rgba(255,59,92,0.3)', color: 'var(--red)', fontSize: '13px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <AlertCircle size={14} /> {error}
-              </div>
-            )}
+              {/* Timeline */}
+              <motion.div
+                className="glass-card"
+                style={{ borderRadius: '20px', padding: '28px', marginBottom: '28px' }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <p style={{ display: 'flex', alignItems: 'center', gap: '10px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '16px', margin: '0 0 28px', color: 'var(--fg)' }}>
+                  <Activity size={18} style={{ color: 'var(--lime)' }} /> Live Agent Timeline
+                </p>
 
-            {/* Demo + How it works */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <button onClick={() => startScan(true)} disabled={isLoading} className="btn-lime" style={{ padding: '14px 24px', borderRadius: '12px', fontSize: '14px', display: 'inline-flex', alignItems: 'center', gap: '10px', cursor: isLoading ? 'not-allowed' : 'pointer', width: 'fit-content', opacity: isLoading ? 0.7 : 1 }}>
-                <Zap size={16} /> Run Live Demo — lodash + axios CVEs
-              </button>
+                <div style={{ position: 'relative', paddingLeft: '28px' }}>
+                  {/* Timeline line */}
+                  {events.length > 0 && (
+                    <motion.div
+                      style={{ position: 'absolute', left: '20px', top: '4px', bottom: '20px', width: '2px', background: 'linear-gradient(to bottom, var(--lime), var(--lime-glow), transparent)', borderRadius: '2px' }}
+                      initial={{ scaleY: 0 }}
+                      animate={{ scaleY: 1 }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  )}
 
-              <div className="glass-card" style={{ borderRadius: '16px', padding: '24px' }}>
-                <p className="section-heading">How it works</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
-                  {[
-                    { icon: Box,      label: 'Fetch Deps',  desc: 'Parses manifests',     color: '#2563EB' },
-                    { icon: Search,   label: 'Scan CVEs',   desc: 'OSV.dev + NVD',        color: '#7C3AED' },
-                    { icon: Brain,    label: 'AI Context',  desc: 'Call graph analysis',  color: '#0891B2' },
-                    { icon: Github,   label: 'Open PR',     desc: 'Automated patch',       color: '#059669' },
-                  ].map((s, i) => (
-                    <div key={s.label} className={`animate-slide-up stagger-${i + 1}`} style={{ padding: '16px', borderRadius: '10px', background: 'var(--surface)', border: '1px solid var(--border-void)' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: s.color + '22', border: `1px solid ${s.color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
-                        <s.icon size={14} style={{ color: s.color }} />
+                  {events.length === 0 && currentRun.status === 'PENDING' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      {[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: '80px' }} />)}
+                    </div>
+                  ) : (
+                    events.map((ev, idx) => (
+                      <TimelineEventCard key={ev.id} event={ev} run={currentRun} index={idx} />
+                    ))
+                  )}
+
+                  {currentRun.status === 'RUNNING' && (
+                    <motion.div
+                      style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '12px' }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', border: '1px solid var(--border-dim)', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Loader2 size={18} className="animate-spin" style={{ color: 'var(--lime)' }} />
                       </div>
-                      <p style={{ fontWeight: 600, fontSize: '13px', margin: '0 0 2px' }}>{s.label}</p>
-                      <p style={{ fontSize: '11px', color: 'var(--fg-3)', margin: 0 }}>{s.desc}</p>
-                    </div>
-                  ))}
+                      <p style={{ color: 'var(--fg-3)', fontStyle: 'italic', fontSize: '13px' }}>Agents processing...</p>
+                    </motion.div>
+                  )}
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
+              </motion.div>
 
-        {/* ══════════════════════════════ SCAN RUNNING / DONE ══════════════════════════════ */}
-        {currentTab === 'dashboard' && currentRun && (
-          <div style={{ maxWidth: '900px' }}>
+              {/* ── Results ── */}
+              {currentRun.status === 'COMPLETED' && (
+                <motion.div
+                  style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}
+                  variants={staggerContainer}
+                  initial="hidden"
+                  animate="visible"
+                >
 
-            {/* Sticky run header */}
-            <div className="glass-card-raised" style={{ position: 'sticky', top: 0, zIndex: 20, borderRadius: '14px', padding: '16px 20px', marginBottom: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-                  <div>
-                    <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', margin: '0 0 3px' }}>Repository</p>
-                    <p style={{ fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
-                      <Github size={13} style={{ color: 'var(--fg-3)' }} /> {currentRun.input.repoName}
-                    </p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', margin: '0 0 3px' }}>Run ID</p>
-                    <p className="mono" style={{ margin: 0, fontSize: '12px', color: 'var(--fg-2)' }}>{currentRun.id.slice(0, 10)}</p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', margin: '0 0 3px' }}>Duration</p>
-                    <p className="mono" style={{ margin: 0, fontSize: '13px', color: 'var(--lime)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Clock size={12} /> {duration}s
-                    </p>
-                  </div>
-                </div>
-                <span className={`chip ${currentRun.status === 'COMPLETED' ? 'badge-lime' : currentRun.status === 'FAILED' ? 'badge-critical' : 'badge-info'}`} style={{ fontSize: '11px', padding: '4px 12px', borderRadius: '99px' }}>
-                  {currentRun.status === 'RUNNING' && <span className="running-dot" style={{ width: '6px', height: '6px', marginRight: '6px' }} />}
-                  {currentRun.status}
-                </span>
-              </div>
-
-              {/* Steps */}
-              <div style={{ display: 'flex', gap: '6px' }}>
-                {STEPS.map((step, i) => {
-                  const cur = getScanStep();
-                  return (
-                    <div key={step} className={`scan-step ${i < cur || currentRun.status === 'COMPLETED' ? 'done' : i === cur && currentRun.status !== 'COMPLETED' ? 'active' : ''}`}>
-                      {(i < cur || currentRun.status === 'COMPLETED') ? <Check size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> : null}
-                      {step}
+                  {/* Severity Gauge + Stats */}
+                  <motion.div
+                    className="glass-card"
+                    style={{ borderRadius: '20px', padding: '32px' }}
+                    variants={fadeInUp}
+                  >
+                    <p className="section-heading" style={{ marginBottom: '24px' }}>Vulnerability Overview</p>
+                    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8">
+                      <SeverityGauge
+                        critical={currentRun.vulnerabilities.filter((v: any) => v.severity.toUpperCase() === 'CRITICAL').length}
+                        high={currentRun.vulnerabilities.filter((v: any) => v.severity.toUpperCase() === 'HIGH').length}
+                        medium={currentRun.vulnerabilities.filter((v: any) => v.severity.toUpperCase() === 'MEDIUM').length}
+                        low={currentRun.vulnerabilities.filter((v: any) => v.severity.toUpperCase() === 'LOW').length}
+                      />
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px' }}>
+                        <motion.div className="stat-card" variants={scaleIn}>
+                          <div className="stat-value" style={{ color: 'var(--fg)' }}><AnimatedNumber value={currentRun.vulnerabilities.length} /></div>
+                          <div className="stat-label">Vulns Found</div>
+                        </motion.div>
+                        <motion.div className="stat-card" style={{ borderColor: 'rgba(0, 255, 140, 0.15)' }} variants={scaleIn}>
+                          <div className="stat-value gradient-text"><AnimatedNumber value={currentRun.remediations.filter((r: any) => r.status === 'FIXED').length} /></div>
+                          <div className="stat-label" style={{ color: 'var(--lime)' }}>Patched</div>
+                        </motion.div>
+                        <motion.div className="stat-card" style={{ borderColor: 'rgba(255,68,102,0.1)' }} variants={scaleIn}>
+                          <div className="stat-value gradient-text-hot"><AnimatedNumber value={currentRun.remediations.filter((r: any) => r.status === 'FAILED').length} /></div>
+                          <div className="stat-label" style={{ color: 'var(--red)' }}>Failed</div>
+                        </motion.div>
+                        <motion.div className="stat-card" variants={scaleIn}>
+                          <div className="stat-value gradient-text-cool mono">{duration}s</div>
+                          <div className="stat-label">Duration</div>
+                        </motion.div>
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                  </motion.div>
 
-            {/* Timeline */}
-            <div className="glass-card" style={{ borderRadius: '16px', padding: '24px', marginBottom: '24px' }}>
-              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px', margin: '0 0 24px', color: 'var(--fg)' }}>
-                <Activity size={16} style={{ color: 'var(--lime)' }} /> Live Agent Timeline
-              </p>
+                  {/* Vulnerabilities table */}
+                  {currentRun.vulnerabilities.length > 0 && (
+                    <motion.div className="glass-card" style={{ borderRadius: '20px', overflow: 'hidden' }} variants={fadeInUp}>
+                      <div style={{ padding: '24px 24px 18px', borderBottom: '1px solid var(--border-void)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Shield size={18} style={{ color: 'var(--red)' }} />
+                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px' }}>Vulnerabilities Discovered</span>
+                        <span className="chip" style={{ marginLeft: 'auto' }}>{currentRun.vulnerabilities.length}</span>
+                      </div>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Package</th>
+                              <th>Severity</th>
+                              <th>Context</th>
+                              <th>Description</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {currentRun.vulnerabilities.map((v: any, i: number) => (
+                              <React.Fragment key={v.id}>
+                                <motion.tr
+                                  style={{ cursor: 'pointer' }}
+                                  onClick={() => toggleRow(v.id)}
+                                  initial={{ opacity: 0, x: -10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: i * 0.05 }}
+                                  whileHover={{ backgroundColor: 'rgba(0, 255, 140, 0.03)' }}
+                                >
+                                  <td>
+                                    <p style={{ fontWeight: 600, margin: '0 0 2px', fontSize: '13px' }}>{v.pkgName}</p>
+                                    <p className="mono" style={{ fontSize: '11px', color: 'var(--fg-3)', margin: 0 }}>{v.pkgVersion}</p>
+                                  </td>
+                                  <td>
+                                    <span className={`chip ${sevBadgeClass(v.severity)}`} style={{ gap: '6px' }}>
+                                      {sevIcon(v.severity)} {v.severity}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    {(v as any).contextNote ? (
+                                      <span className="chip badge-info" style={{ gap: '6px' }}>
+                                        <Brain size={10} /> AI
+                                      </span>
+                                    ) : <span style={{ color: 'var(--fg-4)' }}>-</span>}
+                                  </td>
+                                  <td style={{ maxWidth: '300px' }}>
+                                    <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0, fontSize: '12px', color: 'var(--fg-2)' }}>{v.description}</p>
+                                    <p style={{ fontSize: '10px', color: 'var(--lime)', margin: '3px 0 0', fontFamily: 'var(--font-mono)' }}>Click to expand</p>
+                                  </td>
+                                </motion.tr>
+                                <AnimatePresence>
+                                  {expandedRows[v.id] && (
+                                    <motion.tr
+                                      style={{ background: 'var(--surface)' }}
+                                      initial={{ opacity: 0, height: 0 }}
+                                      animate={{ opacity: 1, height: 'auto' }}
+                                      exit={{ opacity: 0, height: 0 }}
+                                    >
+                                      <td colSpan={4} style={{ padding: '20px 24px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                          <div style={{ padding: '16px', borderRadius: '12px', background: 'var(--raised)', border: '1px solid var(--border-void)', fontSize: '13px', lineHeight: 1.7, color: 'var(--fg-2)' }}>
+                                            {v.description}
+                                          </div>
+                                          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                            <div style={{ padding: '12px 16px', borderRadius: '10px', background: 'var(--raised)', border: '1px solid var(--border-void)' }}>
+                                              <p style={{ fontSize: '10px', color: 'var(--fg-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 6px' }}>CVE</p>
+                                              <p className="mono" style={{ fontSize: '12px', margin: 0, color: 'var(--blue)' }}>{v.cveId}</p>
+                                            </div>
+                                            {(v as any).contextNote && (
+                                              <div style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', background: 'rgba(0, 255, 140, 0.04)', border: '1px solid var(--border-lime)' }}>
+                                                <p style={{ fontSize: '10px', color: 'var(--lime)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: '6px' }}><Brain size={10} /> AI Analysis</p>
+                                                <p style={{ fontSize: '12px', color: 'var(--fg-2)', margin: 0 }}>{(v as any).contextNote}</p>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </td>
+                                    </motion.tr>
+                                  )}
+                                </AnimatePresence>
+                              </React.Fragment>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </motion.div>
+                  )}
 
-              <div style={{ position: 'relative', paddingLeft: '24px' }}>
-                {/* Timeline line */}
-                {events.length > 0 && (
-                  <div style={{ position: 'absolute', left: '19px', top: '4px', bottom: '20px', width: '1px', background: 'linear-gradient(to bottom, var(--lime-glow), transparent)' }} />
-                )}
-
-                {events.length === 0 && currentRun.status === 'PENDING' ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: '72px' }} />)}
-                  </div>
-                ) : (
-                  events.map((ev, idx) => (
-                    <div key={ev.id} style={{ animationDelay: `${idx * 0.04}s` }}>
-                      <TimelineEventCard event={ev} run={currentRun} />
-                    </div>
-                  ))
-                )}
-
-                {currentRun.status === 'RUNNING' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '50%', border: '1px solid var(--border-dim)', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Loader2 size={16} className="animate-spin" style={{ color: 'var(--lime)' }} />
-                    </div>
-                    <p style={{ color: 'var(--fg-3)', fontStyle: 'italic', fontSize: '13px' }}>Agents processing…</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ── Results ── */}
-            {currentRun.status === 'COMPLETED' && (
-              <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
-                {/* Stats */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }} className="stats-grid">
-                  <style>{`@media (min-width: 640px) { .stats-grid { grid-template-columns: repeat(4, 1fr) !important; } }`}</style>
-
-                  <div className="stat-card">
-                    <div className="stat-value" style={{ color: 'var(--fg)' }}><AnimatedNumber value={currentRun.vulnerabilities.length} /></div>
-                    <div className="stat-label">Vulns Found</div>
-                  </div>
-                  <div className="stat-card" style={{ borderColor: 'rgba(5,226,122,0.2)' }}>
-                    <div className="stat-value gradient-text"><AnimatedNumber value={currentRun.remediations.filter(r => r.status === 'FIXED').length} /></div>
-                    <div className="stat-label" style={{ color: 'var(--lime)' }}>Patched</div>
-                  </div>
-                  <div className="stat-card" style={{ borderColor: 'rgba(255,59,92,0.15)' }}>
-                    <div className="stat-value gradient-text-hot"><AnimatedNumber value={currentRun.remediations.filter(r => r.status === 'FAILED').length} /></div>
-                    <div className="stat-label" style={{ color: 'var(--red)' }}>Failed</div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-value" style={{ color: 'var(--blue)', fontFamily: 'var(--font-mono)' }}>{duration}s</div>
-                    <div className="stat-label">Duration</div>
-                  </div>
-                </div>
-
-                {/* Vulnerabilities table */}
-                {currentRun.vulnerabilities.length > 0 && (
-                  <div className="glass-card" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-                    <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--border-void)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Shield size={16} style={{ color: 'var(--red)' }} />
-                      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '14px' }}>Vulnerabilities Discovered</span>
-                      <span className="chip" style={{ marginLeft: 'auto' }}>{currentRun.vulnerabilities.length}</span>
-                    </div>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            <th>Package</th>
-                            <th>Severity</th>
-                            <th>Context</th>
-                            <th>Description</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {currentRun.vulnerabilities.map(v => (
-                            <React.Fragment key={v.id}>
-                              <tr style={{ cursor: 'pointer' }} onClick={() => toggleRow(v.id)}>
+                  {/* Remediations table */}
+                  {currentRun.remediations.length > 0 && (
+                    <motion.div className="glass-card" style={{ borderRadius: '20px', overflow: 'hidden' }} variants={fadeInUp}>
+                      <div style={{ padding: '24px 24px 18px', borderBottom: '1px solid var(--border-void)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <RefreshCw size={18} style={{ color: 'var(--lime)' }} />
+                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px' }}>Remediations Applied</span>
+                      </div>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Package</th>
+                              <th>Update</th>
+                              <th>Attempts</th>
+                              <th style={{ textAlign: 'right' }}>Result</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {currentRun.remediations.map((r: any, i: number) => (
+                              <motion.tr
+                                key={i}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: i * 0.05 }}
+                              >
+                                <td style={{ fontWeight: 600, fontSize: '13px' }}>{r.pkgName}</td>
                                 <td>
-                                  <p style={{ fontWeight: 600, margin: '0 0 2px', fontSize: '13px' }}>{v.pkgName}</p>
-                                  <p className="mono" style={{ fontSize: '11px', color: 'var(--fg-3)', margin: 0 }}>{v.pkgVersion}</p>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span className="mono" style={{ fontSize: '12px', color: 'var(--red)', textDecoration: 'line-through' }}>{r.oldVersion}</span>
+                                    <ArrowRight size={12} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
+                                    <span className="mono" style={{ fontSize: '12px', color: r.status === 'FIXED' ? 'var(--lime)' : 'var(--fg-2)', fontWeight: r.status === 'FIXED' ? 600 : 400 }}>{r.newVersion}</span>
+                                  </div>
                                 </td>
                                 <td>
-                                  <span className={`chip ${sevBadgeClass(v.severity)}`} style={{ gap: '5px' }}>
-                                    {sevIcon(v.severity)} {v.severity}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                      {Array.from({ length: Math.max(1, r.attempts || 1) }).map((_, idx) => (
+                                        <motion.div
+                                          key={idx}
+                                          style={{ width: '10px', height: '10px', borderRadius: '50%', background: r.status === 'FIXED' && idx === (r.attempts || 1) - 1 ? 'var(--lime)' : 'var(--red)' }}
+                                          initial={{ scale: 0 }}
+                                          animate={{ scale: 1 }}
+                                          transition={{ delay: idx * 0.1 }}
+                                          {...(r.status === 'FIXED' && idx === (r.attempts || 1) - 1 ? { style: { width: '10px', height: '10px', borderRadius: '50%', background: 'var(--lime)', boxShadow: '0 0 10px var(--lime-glow)' } } : {})}
+                                        />
+                                      ))}
+                                    </div>
+                                    {(r.attempts || 0) > 1 && r.status === 'FIXED' && (
+                                      <span className="chip badge-medium" style={{ fontSize: '10px' }}>Self-Corrected</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <span className={`chip ${r.status === 'FIXED' ? 'badge-lime' : 'badge-critical'}`} style={{ fontSize: '11px' }}>
+                                    {r.status === 'FIXED' ? 'PATCHED' : 'FAILED'}
                                   </span>
                                 </td>
-                                <td>
-                                  {(v as any).contextNote ? (
-                                    <span className="chip badge-info" style={{ gap: '5px' }}>
-                                      <Brain size={10} /> AI
-                                    </span>
-                                  ) : <span style={{ color: 'var(--fg-4)' }}>—</span>}
-                                </td>
-                                <td style={{ maxWidth: '280px' }}>
-                                  <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0, fontSize: '12px', color: 'var(--fg-2)' }}>{v.description}</p>
-                                  <p style={{ fontSize: '10px', color: 'var(--lime)', margin: '2px 0 0', fontFamily: 'var(--font-mono)' }}>Click to expand ↓</p>
-                                </td>
-                              </tr>
-                              {expandedRows[v.id] && (
-                                <tr style={{ background: 'var(--surface)' }}>
-                                  <td colSpan={4} style={{ padding: '16px 20px' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                      <div style={{ padding: '14px', borderRadius: '10px', background: 'var(--raised)', border: '1px solid var(--border-void)', fontSize: '13px', lineHeight: 1.6, color: 'var(--fg-2)' }}>
-                                        {v.description}
-                                      </div>
-                                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                        <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--raised)', border: '1px solid var(--border-void)' }}>
-                                          <p style={{ fontSize: '10px', color: 'var(--fg-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 4px' }}>CVE</p>
-                                          <p className="mono" style={{ fontSize: '12px', margin: 0, color: 'var(--blue)' }}>{v.cveId}</p>
-                                        </div>
-                                        {(v as any).contextNote && (
-                                          <div style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', background: 'rgba(5,226,122,0.05)', border: '1px solid var(--border-lime)' }}>
-                                            <p style={{ fontSize: '10px', color: 'var(--lime)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: '5px' }}><Brain size={10} /> AI Analysis</p>
-                                            <p style={{ fontSize: '12px', color: 'var(--fg-2)', margin: 0 }}>{(v as any).contextNote}</p>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </React.Fragment>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* Remediations table */}
-                {currentRun.remediations.length > 0 && (
-                  <div className="glass-card" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-                    <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--border-void)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <RefreshCw size={16} style={{ color: 'var(--lime)' }} />
-                      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '14px' }}>Remediations Applied</span>
-                    </div>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            <th>Package</th>
-                            <th>Update</th>
-                            <th>Attempts</th>
-                            <th style={{ textAlign: 'right' }}>Result</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {currentRun.remediations.map((r, i) => (
-                            <tr key={i}>
-                              <td style={{ fontWeight: 600, fontSize: '13px' }}>{r.pkgName}</td>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <span className="mono" style={{ fontSize: '12px', color: 'var(--red)', textDecoration: 'line-through' }}>{r.oldVersion}</span>
-                                  <ArrowRight size={12} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
-                                  <span className="mono" style={{ fontSize: '12px', color: r.status === 'FIXED' ? 'var(--lime)' : 'var(--fg-2)', fontWeight: r.status === 'FIXED' ? 600 : 400 }}>{r.newVersion}</span>
-                                </div>
-                              </td>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <div style={{ display: 'flex', gap: '4px' }}>
-                                    {Array.from({ length: Math.max(1, r.attempts || 1) }).map((_, idx) => (
-                                      <div key={idx} style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.status === 'FIXED' && idx === (r.attempts || 1) - 1 ? 'var(--lime)' : 'var(--red)', boxShadow: r.status === 'FIXED' && idx === (r.attempts || 1) - 1 ? '0 0 6px var(--lime-glow)' : 'none' }} />
-                                    ))}
-                                  </div>
-                                  {(r.attempts || 0) > 1 && r.status === 'FIXED' && (
-                                    <span className="chip badge-medium" style={{ fontSize: '10px' }}>Self-Corrected</span>
-                                  )}
-                                </div>
-                              </td>
-                              <td style={{ textAlign: 'right' }}>
-                                <span className={`chip ${r.status === 'FIXED' ? 'badge-lime' : 'badge-critical'}`} style={{ fontSize: '11px' }}>
-                                  {r.status === 'FIXED' ? '✓ PATCHED' : '✗ FAILED'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Failed state */}
-            {currentRun.status === 'FAILED' && (
-              <div style={{ textAlign: 'center', padding: '48px 32px', borderRadius: '16px', background: 'var(--red-dim)', border: '1px solid rgba(255,59,92,0.25)' }}>
-                <AlertTriangle size={40} style={{ color: 'var(--red)', margin: '0 auto 16px' }} />
-                <p className="display" style={{ fontSize: '20px', fontWeight: 800, color: 'var(--red)', margin: '0 0 8px' }}>Workflow Failed</p>
-                <p style={{ color: 'rgba(255,59,92,0.7)', fontSize: '13px' }}>Check the timeline above for error details.</p>
-              </div>
-            )}
-
-            {/* Reset button */}
-            <div style={{ textAlign: 'center', paddingTop: '24px', paddingBottom: '40px' }}>
-              <button onClick={() => { setCurrentRun(null); setRepoUrl(''); setSelectedRepo(''); }} className="btn-ghost" style={{ padding: '11px 24px', borderRadius: '10px', fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                <RefreshCw size={14} /> Start Another Scan
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ══════════════════════════════ HISTORY ══════════════════════════════ */}
-        {currentTab === 'history' && (
-          <div style={{ maxWidth: '900px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
-              <div>
-                <h2 className="display" style={{ fontSize: '22px', fontWeight: 800, margin: '0 0 4px', letterSpacing: '-0.01em' }}>Scan History</h2>
-                <p style={{ color: 'var(--fg-3)', fontSize: '13px', margin: 0 }}>{history.length} total scans</p>
-              </div>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <div style={{ position: 'relative' }}>
-                  <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)' }} />
-                  <input type="text" placeholder="Search repos…" value={searchFilter} onChange={e => setSearchFilter(e.target.value)} className="input-void" style={{ padding: '9px 12px 9px 34px', borderRadius: '9px', fontSize: '13px', width: '220px' }} />
-                </div>
-                <button onClick={clearHistory} className="btn-ghost" style={{ padding: '9px 14px', borderRadius: '9px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                  <Trash2 size={13} /> Clear
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {history.filter(s => (s.repo || '').toLowerCase().includes(searchFilter.toLowerCase())).length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '64px 32px', borderRadius: '16px', border: '1px dashed var(--border-dim)', background: 'var(--surface)' }}>
-                  <History size={40} style={{ color: 'var(--fg-4)', margin: '0 auto 16px' }} />
-                  <p style={{ color: 'var(--fg-3)', fontSize: '14px' }}>No scan history yet.</p>
-                </div>
-              ) : (
-                history.filter(s => (s.repo || '').toLowerCase().includes(searchFilter.toLowerCase())).map((scan: any) => (
-                  <div key={scan.id} onClick={() => loadRun(scan.runId)} className="glass-card animate-slide-up" style={{ borderRadius: '12px', padding: '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', transition: 'border-color 0.2s ease' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border-mid)'}
-                    onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border-dim)'}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
-                        <Github size={14} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
-                        <span style={{ fontWeight: 600, fontSize: '13.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scan.repo}</span>
-                        <span className="chip" style={{ fontSize: '10px' }}>{scan.ecosystem || 'NPM'}</span>
+                              </motion.tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                      <div className="mono" style={{ fontSize: '11px', color: 'var(--fg-3)', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-                        <span>{new Date(scan.createdAt).toLocaleString()}</span>
-                        {scan.vulnerabilities?.filter((v: any) => v.severity === 'CRITICAL').length > 0 && (
-                          <span style={{ color: 'var(--red)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <Skull size={10} /> {scan.vulnerabilities.filter((v: any) => v.severity === 'CRITICAL').length}
-                          </span>
-                        )}
-                        {scan.vulnerabilities?.filter((v: any) => v.severity === 'HIGH').length > 0 && (
-                          <span style={{ color: 'var(--orange)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <Flame size={10} /> {scan.vulnerabilities.filter((v: any) => v.severity === 'HIGH').length}
-                          </span>
-                        )}
-                        <span style={{ color: 'var(--lime)', fontWeight: 600 }}>{scan.fixedCount || 0} fixed</span>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-                      {scan.status === 'COMPLETED' && (
-                        <button onClick={e => { e.stopPropagation(); deleteScan(scan.runId); }} className="btn-ghost" style={{ padding: '6px 10px', borderRadius: '8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                          <Trash2 size={12} />
-                        </button>
-                      )}
-                      {scan.prUrl && <span className="chip badge-lime" style={{ fontSize: '10px' }}><CheckCircle2 size={10} /> PR</span>}
-                      <span className={`chip ${scan.status === 'COMPLETED' ? 'badge-lime' : scan.status === 'FAILED' ? 'badge-critical' : 'badge-info'}`} style={{ fontSize: '10px' }}>{scan.status}</span>
-                      <ChevronRight size={16} style={{ color: 'var(--fg-4)' }} />
-                    </div>
-                  </div>
-                ))
+                    </motion.div>
+                  )}
+                </motion.div>
               )}
-            </div>
-          </div>
-        )}
 
-        {/* ══════════════════════════════ SCHEDULES ══════════════════════════════ */}
-        {currentTab === 'schedules' && (
-          <div style={{ maxWidth: '900px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
-              <div>
-                <h2 className="display" style={{ fontSize: '22px', fontWeight: 800, margin: '0 0 4px', letterSpacing: '-0.01em' }}>Scheduled Scans</h2>
-                <p style={{ color: 'var(--fg-3)', fontSize: '13px', margin: 0 }}>Automate vulnerability checks with cron</p>
-              </div>
-              <button onClick={() => setShowScheduleModal(true)} className="btn-lime" style={{ padding: '10px 18px', borderRadius: '10px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <Calendar size={14} /> Add Schedule
-              </button>
-            </div>
+              {/* Failed state */}
+              {currentRun.status === 'FAILED' && (
+                <motion.div
+                  style={{ textAlign: 'center', padding: '56px 36px', borderRadius: '20px', background: 'linear-gradient(135deg, rgba(255, 68, 102, 0.1), rgba(255, 68, 102, 0.03))', border: '1px solid rgba(255,68,102,0.2)' }}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                >
+                  <motion.div
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <AlertTriangle size={48} style={{ color: 'var(--red)', margin: '0 auto 20px' }} />
+                  </motion.div>
+                  <p className="display" style={{ fontSize: '22px', fontWeight: 800, color: 'var(--red)', margin: '0 0 10px' }}>Workflow Failed</p>
+                  <p style={{ color: 'rgba(255,68,102,0.7)', fontSize: '14px' }}>Check the timeline above for error details.</p>
+                </motion.div>
+              )}
 
-            {showScheduleModal && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-                <div className="glass-card-raised animate-slide-up" style={{ width: '100%', maxWidth: '460px', borderRadius: '20px', padding: '28px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                    <h3 className="display" style={{ fontWeight: 800, fontSize: '18px', margin: 0 }}>New Schedule</h3>
-                    <button onClick={() => setShowScheduleModal(false)} style={{ color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}><XCircle size={20} /></button>
+              {/* Reset button */}
+              <motion.div
+                style={{ textAlign: 'center', paddingTop: '32px', paddingBottom: '48px' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                <motion.button
+                  onClick={() => { setCurrentRun(null); setRepoUrl(''); setSelectedRepo(''); }}
+                  className="btn-ghost"
+                  style={{ padding: '13px 28px', borderRadius: '12px', fontSize: '14px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '10px' }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <RefreshCw size={15} /> Start Another Scan
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* ══════════════════════════════ HISTORY ══════════════════════════════ */}
+          {currentTab === 'history' && (
+            <motion.div
+              key="history"
+              style={{ maxWidth: '960px' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '20px', marginBottom: '28px' }}
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
+                <motion.div variants={fadeInUp}>
+                  <h2 className="display" style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.02em' }}>Scan History</h2>
+                  <p style={{ color: 'var(--fg-3)', fontSize: '14px', margin: 0 }}>{history.length} total scans</p>
+                </motion.div>
+                <motion.div variants={fadeInUp} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative' }}>
+                    <Search size={14} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)' }} />
+                    <input type="text" placeholder="Search repos..." value={searchFilter} onChange={e => setSearchFilter(e.target.value)} className="input-void" style={{ padding: '11px 14px 11px 38px', borderRadius: '10px', fontSize: '13px', width: '240px' }} />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', display: 'block', marginBottom: '8px' }}>GitHub Repo URL</label>
-                      <input type="text" value={scheduleRepo} onChange={e => setScheduleRepo(e.target.value)} className="input-void" style={{ width: '100%', padding: '11px 14px', borderRadius: '9px', fontSize: '13px' }} placeholder="https://github.com/owner/repo" />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', display: 'block', marginBottom: '8px' }}>Time (HH:MM)</label>
-                        <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="input-void" style={{ width: '100%', padding: '11px 14px', borderRadius: '9px', fontSize: '13px' }} />
+                  <motion.button onClick={clearHistory} className="btn-ghost" style={{ padding: '11px 16px', borderRadius: '10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                    <Trash2 size={14} /> Clear
+                  </motion.button>
+                </motion.div>
+              </motion.div>
+
+              <motion.div
+                style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
+                {history.filter(s => (s.repo || '').toLowerCase().includes(searchFilter.toLowerCase())).length === 0 ? (
+                  <motion.div
+                    variants={fadeInUp}
+                    style={{ textAlign: 'center', padding: '72px 36px', borderRadius: '20px', border: '1px dashed var(--border-dim)', background: 'var(--surface)' }}
+                  >
+                    <History size={48} style={{ color: 'var(--fg-4)', margin: '0 auto 20px' }} />
+                    <p style={{ color: 'var(--fg-3)', fontSize: '15px' }}>No scan history yet.</p>
+                  </motion.div>
+                ) : (
+                  history.filter(s => (s.repo || '').toLowerCase().includes(searchFilter.toLowerCase())).map((scan: any, i: number) => (
+                    <motion.div
+                      key={scan.id}
+                      onClick={() => loadRun(scan.runId)}
+                      className="glass-card"
+                      style={{ borderRadius: '14px', padding: '18px 24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}
+                      variants={fadeInUp}
+                      whileHover={{ x: 4, borderColor: 'var(--border-mid)' }}
+                      transition={{ type: 'spring', stiffness: 300 }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                          <Github size={14} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
+                          <span style={{ fontWeight: 600, fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scan.repo}</span>
+                          <span className="chip" style={{ fontSize: '10px' }}>{scan.ecosystem || 'NPM'}</span>
+                        </div>
+                        <div className="mono" style={{ fontSize: '11px', color: 'var(--fg-3)', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                          <span>{new Date(scan.createdAt).toLocaleString()}</span>
+                          {scan.vulnerabilities?.filter((v: any) => v.severity === 'CRITICAL').length > 0 && (
+                            <span style={{ color: 'var(--red)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Skull size={10} /> {scan.vulnerabilities.filter((v: any) => v.severity === 'CRITICAL').length}
+                            </span>
+                          )}
+                          {scan.vulnerabilities?.filter((v: any) => v.severity === 'HIGH').length > 0 && (
+                            <span style={{ color: 'var(--orange)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Flame size={10} /> {scan.vulnerabilities.filter((v: any) => v.severity === 'HIGH').length}
+                            </span>
+                          )}
+                          <span style={{ color: 'var(--lime)', fontWeight: 600 }}>{scan.fixedCount || 0} fixed</span>
+                        </div>
                       </div>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', display: 'block', marginBottom: '8px' }}>Weekday</label>
-                        <select value={scheduleWeekday} onChange={e => setScheduleWeekday(e.target.value)} className="input-void" style={{ width: '100%', padding: '11px 14px', borderRadius: '9px', fontSize: '13px' }}>
-                          <option value="*">Any</option><option value="0">Sun</option><option value="1">Mon</option><option value="2">Tue</option><option value="3">Wed</option><option value="4">Thu</option><option value="5">Fri</option><option value="6">Sat</option>
-                        </select>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                        {scan.status === 'COMPLETED' && (
+                          <motion.button
+                            onClick={e => { e.stopPropagation(); deleteScan(scan.runId); }}
+                            className="btn-ghost"
+                            style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            <Trash2 size={12} />
+                          </motion.button>
+                        )}
+                        {scan.prUrl && <span className="chip badge-lime" style={{ fontSize: '10px' }}><CheckCircle2 size={10} /> PR</span>}
+                        <span className={`chip ${scan.status === 'COMPLETED' ? 'badge-lime' : scan.status === 'FAILED' ? 'badge-critical' : 'badge-info'}`} style={{ fontSize: '10px' }}>{scan.status}</span>
+                        <ChevronRight size={16} style={{ color: 'var(--fg-4)' }} />
                       </div>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', display: 'block', marginBottom: '8px' }}>Day of Month</label>
-                        <input type="text" value={scheduleDayOfMonth} onChange={e => setScheduleDayOfMonth(e.target.value || '*')} className="input-void" style={{ width: '100%', padding: '11px 14px', borderRadius: '9px', fontSize: '13px' }} placeholder="* or 1-31" />
+                    </motion.div>
+                  ))
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* ══════════════════════════════ SCHEDULES ══════════════════════════════ */}
+          {currentTab === 'schedules' && (
+            <motion.div
+              key="schedules"
+              style={{ maxWidth: '960px' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '20px', marginBottom: '28px' }}
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
+                <motion.div variants={fadeInUp}>
+                  <h2 className="display" style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.02em' }}>Scheduled Scans</h2>
+                  <p style={{ color: 'var(--fg-3)', fontSize: '14px', margin: 0 }}>Automate vulnerability checks with cron</p>
+                </motion.div>
+                <motion.button
+                  onClick={() => setShowScheduleModal(true)}
+                  className="btn-lime"
+                  style={{ padding: '12px 20px', borderRadius: '12px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                  variants={fadeInUp}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Calendar size={15} /> Add Schedule
+                </motion.button>
+              </motion.div>
+
+              <AnimatePresence>
+                {showScheduleModal && (
+                  <motion.div
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <motion.div
+                      className="glass-card-raised"
+                      style={{ width: '100%', maxWidth: '480px', borderRadius: '24px', padding: '32px' }}
+                      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+                        <h3 className="display" style={{ fontWeight: 800, fontSize: '20px', margin: 0 }}>New Schedule</h3>
+                        <motion.button onClick={() => setShowScheduleModal(false)} style={{ color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }} whileHover={{ scale: 1.1 }}><XCircle size={22} /></motion.button>
                       </div>
-                      <div>
-                        <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', display: 'block', marginBottom: '8px' }}>Month</label>
-                        <input type="text" value={scheduleMonth} onChange={e => setScheduleMonth(e.target.value || '*')} className="input-void" style={{ width: '100%', padding: '11px 14px', borderRadius: '9px', fontSize: '13px' }} placeholder="* or 1-12" />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px' }}>GitHub Repo URL</label>
+                          <input type="text" value={scheduleRepo} onChange={e => setScheduleRepo(e.target.value)} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }} placeholder="https://github.com/owner/repo" />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                          <div>
+                            <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px' }}>Time (HH:MM)</label>
+                            <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px' }}>Weekday</label>
+                            <select value={scheduleWeekday} onChange={e => setScheduleWeekday(e.target.value)} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }}>
+                              <option value="*">Any</option><option value="0">Sun</option><option value="1">Mon</option><option value="2">Tue</option><option value="3">Wed</option><option value="4">Thu</option><option value="5">Fri</option><option value="6">Sat</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px' }}>Day of Month</label>
+                            <input type="text" value={scheduleDayOfMonth} onChange={e => setScheduleDayOfMonth(e.target.value || '*')} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }} placeholder="* or 1-31" />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px' }}>Month</label>
+                            <input type="text" value={scheduleMonth} onChange={e => setScheduleMonth(e.target.value || '*')} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }} placeholder="* or 1-12" />
+                          </div>
+                        </div>
+                        <div className="chip" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', padding: '10px 14px', borderRadius: '10px', justifyContent: 'center' }}>
+                          cron: {pm} {ph} {scheduleDayOfMonth} {scheduleMonth} {scheduleWeekday}
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px', paddingTop: '8px' }}>
+                          <motion.button onClick={() => setShowScheduleModal(false)} className="btn-ghost" style={{ flex: 1, padding: '13px', borderRadius: '12px', cursor: 'pointer' }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>Cancel</motion.button>
+                          <motion.button onClick={saveSchedule} className="btn-lime" style={{ flex: 1, padding: '13px', borderRadius: '12px', cursor: 'pointer' }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>Create Schedule</motion.button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="chip" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', padding: '8px 12px', borderRadius: '8px', justifyContent: 'center' }}>
-                      cron: {pm} {ph} {scheduleDayOfMonth} {scheduleMonth} {scheduleWeekday}
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
-                      <button onClick={() => setShowScheduleModal(false)} className="btn-ghost" style={{ flex: 1, padding: '11px', borderRadius: '10px', cursor: 'pointer' }}>Cancel</button>
-                      <button onClick={saveSchedule} className="btn-lime" style={{ flex: 1, padding: '11px', borderRadius: '10px', cursor: 'pointer' }}>Create Schedule</button>
-                    </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {schedules.length === 0 ? (
+                <motion.div
+                  style={{ textAlign: 'center', padding: '72px 36px', borderRadius: '20px', border: '1px dashed var(--border-dim)', background: 'var(--surface)' }}
+                  variants={fadeInUp}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  <Calendar size={48} style={{ color: 'var(--fg-4)', margin: '0 auto 20px' }} />
+                  <p style={{ color: 'var(--fg-3)', fontSize: '15px', margin: '0 0 8px' }}>No active schedules</p>
+                  <p style={{ color: 'var(--fg-4)', fontSize: '13px', margin: 0 }}>Set up schedules to continuously monitor repositories.</p>
+                </motion.div>
+              ) : (
+                <motion.div
+                  style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '14px' }}
+                  variants={staggerContainer}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  {schedules.map((s: any) => (
+                    <motion.div
+                      key={s.repo}
+                      className="glass-card"
+                      style={{ borderRadius: '18px', padding: '24px', position: 'relative' }}
+                      variants={scaleIn}
+                      whileHover={{ y: -4 }}
+                      transition={{ type: 'spring', stiffness: 300 }}
+                    >
+                      <motion.button onClick={() => deleteSchedule(s.repo)} style={{ position: 'absolute', top: '18px', right: '18px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-void)', background: 'var(--raised)', color: 'var(--fg-3)', cursor: 'pointer' }} whileHover={{ scale: 1.1, borderColor: 'var(--red)' }}>
+                        <Trash2 size={13} />
+                      </motion.button>
+                      <p style={{ fontWeight: 600, margin: '0 0 6px', paddingRight: '40px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Github size={15} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
+                        {s.repo.replace('https://github.com/', '')}
+                      </p>
+                      <div style={{ padding: '14px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border-void)', marginBottom: '14px', fontSize: '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                          <span style={{ color: 'var(--fg-3)' }}>Frequency</span>
+                          <span style={{ fontWeight: 600 }}>{formatCron(s.cronExpression)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--fg-3)' }}>Cron</span>
+                          <span className="mono" style={{ fontSize: '11px', color: 'var(--fg-2)' }}>{s.cronExpression}</span>
+                        </div>
+                      </div>
+                      <motion.button onClick={() => runScheduleNow(s.repo)} className="btn-ghost" style={{ width: '100%', padding: '11px', borderRadius: '10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                        <PlayCircle size={14} /> Run Now
+                      </motion.button>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ══════════════════════════════ SETTINGS ══════════════════════════════ */}
+          {currentTab === 'settings' && (
+            <motion.div
+              key="settings"
+              style={{ maxWidth: '680px' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                style={{ marginBottom: '32px' }}
+                variants={fadeInUp}
+                initial="hidden"
+                animate="visible"
+              >
+                <h2 className="display" style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.02em' }}>Settings</h2>
+                <p style={{ color: 'var(--fg-3)', fontSize: '14px', margin: 0 }}>Manage tokens, AI keys, and integrations</p>
+              </motion.div>
+
+              <motion.form
+                onSubmit={saveSettings}
+                style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
+                {/* GitHub Token */}
+                <motion.div className="glass-card" style={{ borderRadius: '18px', padding: '24px' }} variants={fadeInUp}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <Github size={13} /> GitHub Token
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input type={showGithubSettingToken ? 'text' : 'password'} value={settings.githubToken || ''} onChange={e => setSettings({ ...settings, githubToken: e.target.value })} className="input-void input-mono" style={{ width: '100%', padding: '13px 48px 13px 16px', borderRadius: '10px', fontSize: '12px' }} placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" />
+                    <button type="button" onClick={() => setShowGithubSettingToken(v => !v)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>{showGithubSettingToken ? <EyeOff size={15} /> : <Eye size={15} />}</button>
                   </div>
-                </div>
-              </div>
-            )}
+                </motion.div>
 
-            {schedules.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '64px 32px', borderRadius: '16px', border: '1px dashed var(--border-dim)', background: 'var(--surface)' }}>
-                <Calendar size={40} style={{ color: 'var(--fg-4)', margin: '0 auto 16px' }} />
-                <p style={{ color: 'var(--fg-3)', fontSize: '14px', margin: '0 0 8px' }}>No active schedules</p>
-                <p style={{ color: 'var(--fg-4)', fontSize: '12px', margin: 0 }}>Set up schedules to continuously monitor repositories.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
-                {schedules.map(s => (
-                  <div key={s.repo} className="glass-card" style={{ borderRadius: '14px', padding: '20px', position: 'relative' }}>
-                    <button onClick={() => deleteSchedule(s.repo)} style={{ position: 'absolute', top: '16px', right: '16px', padding: '6px', borderRadius: '7px', border: '1px solid var(--border-void)', background: 'var(--raised)', color: 'var(--fg-3)', cursor: 'pointer' }}>
-                      <Trash2 size={13} />
-                    </button>
-                    <p style={{ fontWeight: 600, margin: '0 0 4px', paddingRight: '36px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Github size={14} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
-                      {s.repo.replace('https://github.com/', '')}
-                    </p>
-                    <div style={{ padding: '12px', borderRadius: '9px', background: 'var(--surface)', border: '1px solid var(--border-void)', marginBottom: '12px', fontSize: '12px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                        <span style={{ color: 'var(--fg-3)' }}>Frequency</span>
-                        <span style={{ fontWeight: 600 }}>{formatCron(s.cronExpression)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--fg-3)' }}>Cron</span>
-                        <span className="mono" style={{ fontSize: '11px', color: 'var(--fg-2)' }}>{s.cronExpression}</span>
-                      </div>
-                    </div>
-                    <button onClick={() => runScheduleNow(s.repo)} className="btn-ghost" style={{ width: '100%', padding: '9px', borderRadius: '9px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', cursor: 'pointer' }}>
-                      <PlayCircle size={13} /> Run Now
-                    </button>
+                {/* Groq Key */}
+                <motion.div className="glass-card" style={{ borderRadius: '18px', padding: '24px' }} variants={fadeInUp}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <Brain size={13} /> Groq API Key
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input type={showGroqKey ? 'text' : 'password'} value={settings.groqApiKey || ''} onChange={e => setSettings({ ...settings, groqApiKey: e.target.value })} className="input-void input-mono" style={{ width: '100%', padding: '13px 48px 13px 16px', borderRadius: '10px', fontSize: '12px' }} placeholder="gsk_xxxxxxxxxxxxxxxxxxxx" />
+                    <button type="button" onClick={() => setShowGroqKey(v => !v)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>{showGroqKey ? <EyeOff size={15} /> : <Eye size={15} />}</button>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                </motion.div>
 
-        {/* ══════════════════════════════ SETTINGS ══════════════════════════════ */}
-        {currentTab === 'settings' && (
-          <div style={{ maxWidth: '640px' }}>
-            <div style={{ marginBottom: '28px' }}>
-              <h2 className="display" style={{ fontSize: '22px', fontWeight: 800, margin: '0 0 4px', letterSpacing: '-0.01em' }}>Settings</h2>
-              <p style={{ color: 'var(--fg-3)', fontSize: '13px', margin: 0 }}>Manage tokens, AI keys, and integrations</p>
-            </div>
+                {/* Webhook URL */}
+                <motion.div className="glass-card" style={{ borderRadius: '18px', padding: '24px' }} variants={fadeInUp}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <Bell size={13} /> Webhook URL
+                  </label>
+                  <input type="url" value={settings.webhookUrl || ''} onChange={e => setSettings({ ...settings, webhookUrl: e.target.value })} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }} placeholder="https://hooks.slack.com/..." />
+                </motion.div>
 
-            <form onSubmit={saveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {/* GitHub Token */}
-              <div className="glass-card" style={{ borderRadius: '14px', padding: '20px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Github size={12} /> GitHub Token
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input type={showGithubSettingToken ? 'text' : 'password'} value={settings.githubToken || ''} onChange={e => setSettings({ ...settings, githubToken: e.target.value })} className="input-void input-mono" style={{ width: '100%', padding: '11px 44px 11px 14px', borderRadius: '9px', fontSize: '12px' }} placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" />
-                  <button type="button" onClick={() => setShowGithubSettingToken(v => !v)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>{showGithubSettingToken ? <EyeOff size={15} /> : <Eye size={15} />}</button>
-                </div>
-              </div>
+                {/* Webhook Secret */}
+                <motion.div className="glass-card" style={{ borderRadius: '18px', padding: '24px' }} variants={fadeInUp}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <Lock size={13} /> Webhook Secret
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input type={showWebhookSecret ? 'text' : 'password'} value={settings.webhookSecret || ''} onChange={e => setSettings({ ...settings, webhookSecret: e.target.value })} className="input-void" style={{ width: '100%', padding: '13px 48px 13px 16px', borderRadius: '10px', fontSize: '13px' }} placeholder="Optional HMAC secret" />
+                    <button type="button" onClick={() => setShowWebhookSecret(v => !v)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>{showWebhookSecret ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+                  </div>
+                </motion.div>
 
-              {/* Groq Key */}
-              <div className="glass-card" style={{ borderRadius: '14px', padding: '20px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Brain size={12} /> Groq API Key
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input type={showGroqKey ? 'text' : 'password'} value={settings.groqApiKey || ''} onChange={e => setSettings({ ...settings, groqApiKey: e.target.value })} className="input-void input-mono" style={{ width: '100%', padding: '11px 44px 11px 14px', borderRadius: '9px', fontSize: '12px' }} placeholder="gsk_xxxxxxxxxxxxxxxxxxxx" />
-                  <button type="button" onClick={() => setShowGroqKey(v => !v)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>{showGroqKey ? <EyeOff size={15} /> : <Eye size={15} />}</button>
-                </div>
-              </div>
+                {/* Email */}
+                <motion.div className="glass-card" style={{ borderRadius: '18px', padding: '24px' }} variants={fadeInUp}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'block', marginBottom: '12px' }}>Email Alerts</label>
+                  <input type="email" value={settings.email || ''} onChange={e => setSettings({ ...settings, email: e.target.value })} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }} placeholder="security@company.com" />
+                </motion.div>
 
-              {/* Webhook URL */}
-              <div className="glass-card" style={{ borderRadius: '14px', padding: '20px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Bell size={12} /> Webhook URL
-                </label>
-                <input type="url" value={settings.webhookUrl || ''} onChange={e => setSettings({ ...settings, webhookUrl: e.target.value })} className="input-void" style={{ width: '100%', padding: '11px 14px', borderRadius: '9px', fontSize: '13px' }} placeholder="https://hooks.slack.com/…" />
-              </div>
-
-              {/* Webhook Secret */}
-              <div className="glass-card" style={{ borderRadius: '14px', padding: '20px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Lock size={12} /> Webhook Secret
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input type={showWebhookSecret ? 'text' : 'password'} value={settings.webhookSecret || ''} onChange={e => setSettings({ ...settings, webhookSecret: e.target.value })} className="input-void" style={{ width: '100%', padding: '11px 44px 11px 14px', borderRadius: '9px', fontSize: '13px' }} placeholder="Optional HMAC secret" />
-                  <button type="button" onClick={() => setShowWebhookSecret(v => !v)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>{showWebhookSecret ? <EyeOff size={15} /> : <Eye size={15} />}</button>
-                </div>
-              </div>
-
-              {/* Email */}
-              <div className="glass-card" style={{ borderRadius: '14px', padding: '20px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px' }}>Email Alerts</label>
-                <input type="email" value={settings.email || ''} onChange={e => setSettings({ ...settings, email: e.target.value })} className="input-void" style={{ width: '100%', padding: '11px 14px', borderRadius: '9px', fontSize: '13px' }} placeholder="security@company.com" />
-              </div>
-
-              {/* Webhook endpoint */}
-              <div className="glass-card" style={{ borderRadius: '14px', padding: '20px', borderColor: 'var(--border-lime)', background: 'rgba(5,226,122,0.03)' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--lime)', display: 'block', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Terminal size={12} /> GitHub App Webhook Endpoint
-                </label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <code className="mono" style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', background: 'var(--surface)', border: '1px solid var(--border-void)', fontSize: '12px', color: 'var(--lime)', overflowX: 'auto', display: 'block' }}>
-                    https://fixstack-backend.onrender.com/api/webhook
-                  </code>
-                  <button type="button" onClick={() => { navigator.clipboard.writeText('https://fixstack-backend.onrender.com/api/webhook'); setCopiedWebhook(true); addToast('Copied!', 'success'); setTimeout(() => setCopiedWebhook(false), 2000); }} className="btn-ghost" style={{ padding: '10px 14px', borderRadius: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', flexShrink: 0 }}>
-                    {copiedWebhook ? <Check size={13} /> : <Copy size={13} />} {copiedWebhook ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '14px' }}>
-                  <button type="button" onClick={testWebhook} className="btn-ghost" style={{ padding: '9px 16px', borderRadius: '9px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer' }}>
-                    <Zap size={13} /> Test Webhook
-                  </button>
-                  <button type="submit" className="btn-lime" style={{ padding: '9px 20px', borderRadius: '9px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer' }}>
-                    <Check size={14} /> Save Settings
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        )}
+                {/* Webhook endpoint */}
+                <motion.div className="glass-card" style={{ borderRadius: '18px', padding: '24px', borderColor: 'var(--border-lime)', background: 'linear-gradient(135deg, rgba(0, 255, 140, 0.04), transparent)' }} variants={fadeInUp}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--lime)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <Terminal size={13} /> GitHub App Webhook Endpoint
+                  </label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <code className="mono" style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', background: 'var(--surface)', border: '1px solid var(--border-void)', fontSize: '12px', color: 'var(--lime)', overflowX: 'auto', display: 'block' }}>
+                      https://fixstack-backend.onrender.com/api/webhook
+                    </code>
+                    <motion.button type="button" onClick={() => { navigator.clipboard.writeText('https://fixstack-backend.onrender.com/api/webhook'); setCopiedWebhook(true); addToast('Copied!', 'success'); setTimeout(() => setCopiedWebhook(false), 2000); }} className="btn-ghost" style={{ padding: '12px 16px', borderRadius: '10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flexShrink: 0 }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      {copiedWebhook ? <Check size={14} /> : <Copy size={14} />} {copiedWebhook ? 'Copied' : 'Copy'}
+                    </motion.button>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '18px' }}>
+                    <motion.button type="button" onClick={testWebhook} className="btn-ghost" style={{ padding: '11px 18px', borderRadius: '10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                      <Zap size={14} /> Test Webhook
+                    </motion.button>
+                    <motion.button type="submit" className="btn-lime" style={{ padding: '11px 22px', borderRadius: '10px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                      <Check size={15} /> Save Settings
+                    </motion.button>
+                  </div>
+                </motion.div>
+              </motion.form>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       {/* ─── Help FAB ─────────────────────────────────────────────────────── */}
-      <button onClick={() => setShowHelpModal(true)} className="btn-lime" style={{ position: 'fixed', bottom: '24px', right: '24px', width: '48px', height: '48px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 800, zIndex: 30, cursor: 'pointer', padding: 0 }}>
+      <motion.button
+        onClick={() => setShowHelpModal(true)}
+        className="btn-lime"
+        style={{ position: 'fixed', bottom: '28px', right: '28px', width: '52px', height: '52px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 800, zIndex: 30, cursor: 'pointer', padding: 0 }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.5, type: 'spring', stiffness: 300 }}
+      >
         ?
-      </button>
+      </motion.button>
 
       {/* ─── Help Modal ───────────────────────────────────────────────────── */}
-      {showHelpModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 100, padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="glass-card-raised animate-slide-up" style={{ width: '100%', maxWidth: '580px', borderRadius: '20px', padding: '28px', position: 'relative' }}>
-            <button onClick={() => setShowHelpModal(false)} style={{ position: 'absolute', top: '20px', right: '20px', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}><XCircle size={22} /></button>
-            <h3 className="display" style={{ fontWeight: 800, fontSize: '18px', margin: '0 0 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Info size={18} style={{ color: 'var(--lime)' }} /> GitHub Webhook Setup
-            </h3>
-            <div style={{ color: 'var(--fg-2)', fontSize: '13.5px', lineHeight: 1.7 }}>
-              <p style={{ marginBottom: '16px' }}>Configure a GitHub Webhook so FixStack automatically scans on every push or PR.</p>
-              <ol style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {[
-                  'Go to your GitHub repo → Settings → Webhooks → Add webhook',
-                  <>Set Payload URL to: <code className="mono" style={{ background: 'var(--raised)', padding: '2px 7px', borderRadius: '5px', fontSize: '12px', color: 'var(--lime)' }}>https://fixstack-backend.onrender.com/api/webhook</code></>,
-                  <>Content type: <code className="mono" style={{ background: 'var(--raised)', padding: '2px 7px', borderRadius: '5px', fontSize: '12px' }}>application/json</code></>,
-                  'Set Secret to match GITHUB_WEBHOOK_SECRET in your Settings',
-                  'Events: select Pushes and Pull requests',
-                  'Ensure Active is checked and click Add webhook'
-                ].map((item, i) => <li key={i}>{item}</li>)}
-              </ol>
-              <div style={{ marginTop: '20px', padding: '14px', borderRadius: '10px', background: 'var(--lime-dim)', border: '1px solid var(--border-lime)', color: 'var(--fg-2)', fontSize: '12.5px' }}>
-                <strong style={{ color: 'var(--lime)' }}>Note:</strong> FixStack ignores pushes that don't touch dependency files, saving resources.
+      <AnimatePresence>
+        {showHelpModal && (
+          <motion.div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', zIndex: 100, padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="glass-card-raised"
+              style={{ width: '100%', maxWidth: '600px', borderRadius: '24px', padding: '32px', position: 'relative' }}
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            >
+              <motion.button onClick={() => setShowHelpModal(false)} style={{ position: 'absolute', top: '24px', right: '24px', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }} whileHover={{ scale: 1.1 }}><XCircle size={24} /></motion.button>
+              <h3 className="display" style={{ fontWeight: 800, fontSize: '20px', margin: '0 0 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <Info size={20} style={{ color: 'var(--lime)' }} /> GitHub Webhook Setup
+              </h3>
+              <div style={{ color: 'var(--fg-2)', fontSize: '14px', lineHeight: 1.75 }}>
+                <p style={{ marginBottom: '18px' }}>Configure a GitHub Webhook so FixStack automatically scans on every push or PR.</p>
+                <ol style={{ paddingLeft: '22px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {[
+                    'Go to your GitHub repo -> Settings -> Webhooks -> Add webhook',
+                    <>Set Payload URL to: <code className="mono" style={{ background: 'var(--raised)', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', color: 'var(--lime)' }}>https://fixstack-backend.onrender.com/api/webhook</code></>,
+                    <>Content type: <code className="mono" style={{ background: 'var(--raised)', padding: '3px 8px', borderRadius: '6px', fontSize: '12px' }}>application/json</code></>,
+                    'Set Secret to match GITHUB_WEBHOOK_SECRET in your Settings',
+                    'Events: select Pushes and Pull requests',
+                    'Ensure Active is checked and click Add webhook'
+                  ].map((item, i) => <li key={i}>{item}</li>)}
+                </ol>
+                <div style={{ marginTop: '24px', padding: '16px', borderRadius: '12px', background: 'var(--lime-dim)', border: '1px solid var(--border-lime)', color: 'var(--fg-2)', fontSize: '13px' }}>
+                  <strong style={{ color: 'var(--lime)' }}>Note:</strong> FixStack ignores pushes that don&apos;t touch dependency files, saving resources.
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ─── Toasts ───────────────────────────────────────────────────────── */}
-      <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'none' }}>
-        {toasts.map(t => (
-          <div key={t.id} className={`toast toast-${t.type} animate-slide-up`} style={{ pointerEvents: 'auto' }}>
-            {t.type === 'error' ? <AlertCircle size={14} /> : t.type === 'success' ? <CheckCircle2 size={14} /> : <Info size={14} />}
-            {t.message}
-          </div>
-        ))}
+      <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '10px', pointerEvents: 'none' }}>
+        <AnimatePresence>
+          {toasts.map(t => (
+            <motion.div
+              key={t.id}
+              className={`toast toast-${t.type}`}
+              style={{ pointerEvents: 'auto' }}
+              initial={{ opacity: 0, x: 50, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 50, scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            >
+              {t.type === 'error' ? <AlertCircle size={15} /> : t.type === 'success' ? <CheckCircle2 size={15} /> : <Info size={15} />}
+              {t.message}
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );
