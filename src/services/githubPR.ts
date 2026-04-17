@@ -13,6 +13,8 @@ function parseGitHubRepo(repoUrl: string): { owner: string; repo: string } {
     let normalized = repoUrl.trim();
     if (normalized.startsWith('git@github.com:')) {
       normalized = normalized.replace('git@github.com:', 'https://github.com/');
+    } else if (normalized.startsWith('ssh://git@github.com/')) {
+      normalized = normalized.replace('ssh://git@github.com/', 'https://github.com/');
     }
 
     const urlObj = new URL(normalized);
@@ -26,8 +28,8 @@ function parseGitHubRepo(repoUrl: string): { owner: string; repo: string } {
     }
 
     return { owner, repo };
-  } catch {
-    throw new Error('Invalid repo URL');
+  } catch (error: any) {
+    throw new Error(`Invalid repo URL: ${error?.message || 'parse failed'}`);
   }
 }
 
