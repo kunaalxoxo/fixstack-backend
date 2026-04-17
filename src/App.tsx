@@ -539,6 +539,7 @@ export default function App() {
     { id: 'schedules', icon: Calendar, label: 'Schedules' },
     { id: 'settings', icon: SettingsIcon, label: 'Settings' }
   ] as const;
+  const scheduleParts = getScheduleHourMinute();
 
   if (!isAuthenticated) {
     return (
@@ -1078,7 +1079,7 @@ export default function App() {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs text-[var(--text-secondary)] mb-1">Date (day of month)</label>
+                          <label className="block text-xs text-[var(--text-secondary)] mb-1">Day of Month</label>
                           <input type="text" value={scheduleDayOfMonth} onChange={e => setScheduleDayOfMonth(e.target.value || '*')} className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--border-focus)]" placeholder="* or 1-31" />
                         </div>
                         <div>
@@ -1087,7 +1088,7 @@ export default function App() {
                         </div>
                       </div>
                       <p className="mt-2 text-xs text-[var(--text-secondary)] font-mono">
-                        Cron preview: {getScheduleHourMinute().minute} {getScheduleHourMinute().hour} {scheduleDayOfMonth} {scheduleMonth} {scheduleWeekday}
+                        Cron preview: {scheduleParts.minute} {scheduleParts.hour} {scheduleDayOfMonth} {scheduleMonth} {scheduleWeekday}
                       </p>
                     </div>
                     <div className="pt-2 flex gap-3">
