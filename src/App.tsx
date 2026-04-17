@@ -5,7 +5,7 @@ import {
   Shield, Play, Loader2, CheckCircle2, AlertCircle, Clock, History, GitBranch as Github, 
   ArrowRight, Activity, Box, XCircle, LogOut, Settings as SettingsIcon, 
   Calendar, Building, Bell, LayoutDashboard, Brain, Flame, Info, Search, 
-  Trash2, Copy, PlayCircle, Zap, Check, Skull, AlertTriangle 
+  Trash2, Copy, PlayCircle, Zap, Check, Skull, AlertTriangle, RefreshCw 
 } from 'lucide-react';
 
 const useRunDuration = (run: Run | null) => {

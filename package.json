@@ -5,7 +5,7 @@
   "scripts": {
     "dev:frontend": "vite",
     "dev:backend": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "build": "vite build",
+    "build": "npm install && vite build",
     "build:backend": "npm install",
     "start": "node -r ts-node/register/transpile-only src/server.ts",
     "preview": "vite preview"
