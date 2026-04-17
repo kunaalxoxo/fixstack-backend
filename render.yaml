@@ -4,7 +4,7 @@ services:
     env: node
     plan: free
     buildCommand: npm install
-    startCommand: node -r ts-node/register/transpile-only src/server.ts
+    startCommand: TS_NODE_PROJECT=tsconfig.server.json node -r ts-node/register/transpile-only src/server.ts
     envVars:
       - key: NODE_ENV
         value: production

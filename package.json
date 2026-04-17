@@ -4,10 +4,10 @@
   "version": "1.0.0",
   "scripts": {
     "dev:frontend": "vite",
-    "dev:backend": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev:backend": "TS_NODE_PROJECT=tsconfig.server.json ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "npm install && vite build",
     "build:backend": "npm install",
-    "start": "node -r ts-node/register/transpile-only src/server.ts",
+    "start": "TS_NODE_PROJECT=tsconfig.server.json node -r ts-node/register/transpile-only src/server.ts",
     "preview": "vite preview"
   },
   "dependencies": {
