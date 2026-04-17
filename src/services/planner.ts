@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { Logger } from './logger';
+import { db } from '../db/store';
 
 // Static known-safe patches for demo reliability and offline use
 const KNOWN_PATCHES: Record<string, string[]> = {
@@ -53,7 +54,7 @@ export class PlannerAgent {
   }
 
   private async askGroq(pkgName: string, version: string, attempt: number): Promise<string | null> {
-    const groqApiKey = process.env.GROQ_API_KEY;
+    const groqApiKey = (process.env.GROQ_API_KEY || db.getSetting('groqApiKey') || '').trim();
     if (!groqApiKey) return null;
 
     const prompt = `You are a Node.js dependency security expert.
