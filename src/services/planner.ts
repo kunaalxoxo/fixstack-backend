@@ -156,7 +156,13 @@ Do NOT include any explanation, markdown, or extra text.`;
       );
 
       return suggested;
-    } catch (_) {
+    } catch (error: any) {
+      await this.logger.log(
+        'Patch Planner',
+        'npm Registry',
+        'WARNING',
+        `npm registry fallback failed for ${pkgName}@${currentVersion}: ${error?.message || 'unknown error'}`
+      );
       return null;
     }
   }
