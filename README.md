@@ -24,6 +24,8 @@ GitHub Webhook
 |---|---|---|
 | `GITHUB_TOKEN` | Yes | GitHub PAT with `repo` scope — for PR creation and code search |
 | `GROQ_API_KEY` | Recommended | Groq API key for context-aware exploitability analysis and LLM patch planning |
+| `GROQ_MODEL` | Optional | Preferred Groq model for chat completions (e.g. `llama-3.3-70b-versatile`) |
+| `GROQ_MODELS` | Optional | Comma-separated fallback models to try if the preferred model is unavailable |
 | `GITHUB_WEBHOOK_SECRET` | Recommended | Shared secret for HMAC-SHA256 webhook signature verification |
 | `NVD_API_KEY` | Optional | NVD API key (increases rate limit from 5/30s to 50/30s) |
 

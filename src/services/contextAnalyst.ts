@@ -2,6 +2,7 @@ import axios from 'axios';
 import { Logger } from './logger';
 import { Vulnerability } from '../types';
 import { db } from '../db/store';
+import { getGroqModelCandidates } from './groq';
 
 interface ExposureResult {
   isReachable: boolean;
@@ -112,40 +113,48 @@ Answer ONLY in this exact JSON format (no markdown, no explanation outside JSON)
   "affectedFiles": ["list", "of", "file", "paths", "that", "use", "the", "vulnerable", "api"]
 }`;
 
-    try {
-      const response = await axios.post(
-        'https://api.groq.com/openai/v1/chat/completions',
-        {
-          model: 'llama3-8b-8192',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.1,
-          max_tokens: 300,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${groqApiKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+    const candidateModels = getGroqModelCandidates();
+    let lastError: any = null;
 
-      const raw = response.data.choices[0].message.content.trim();
-      // Strip possible markdown code fences
-      const jsonStr = raw.replace(/^```json?\n?/i, '').replace(/```$/, '').trim();
-      const parsed = JSON.parse(jsonStr);
-      return {
-        isReachable: Boolean(parsed.isReachable),
-        confidence: parsed.confidence || 'MEDIUM',
-        reasoning: parsed.reasoning || '',
-        affectedFiles: Array.isArray(parsed.affectedFiles) ? parsed.affectedFiles : [],
-      };
-    } catch (err: any) {
-      return {
-        isReachable: true,
-        confidence: 'LOW',
-        reasoning: `Groq call failed (${err.message}) — defaulting to reachable.`,
-        affectedFiles: [],
-      };
+    for (const model of candidateModels) {
+      try {
+        const response = await axios.post(
+          'https://api.groq.com/openai/v1/chat/completions',
+          {
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.1,
+            max_tokens: 300,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${groqApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 10000,
+          }
+        );
+
+        const raw = response.data.choices[0].message.content.trim();
+        // Strip possible markdown code fences
+        const jsonStr = raw.replace(/^```json?\n?/i, '').replace(/```$/, '').trim();
+        const parsed = JSON.parse(jsonStr);
+        return {
+          isReachable: Boolean(parsed.isReachable),
+          confidence: parsed.confidence || 'MEDIUM',
+          reasoning: parsed.reasoning || '',
+          affectedFiles: Array.isArray(parsed.affectedFiles) ? parsed.affectedFiles : [],
+        };
+      } catch (err: any) {
+        lastError = err;
+      }
     }
+
+    return {
+      isReachable: true,
+      confidence: 'LOW',
+      reasoning: `Groq call failed (${lastError?.message || 'unknown error'}) — defaulting to reachable.`,
+      affectedFiles: [],
+    };
   }
 }
