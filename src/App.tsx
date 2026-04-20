@@ -1,413 +1,196 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { fixstackApi } from './api';
 import { Run, RunEvent } from './types';
 import {
-  Shield, Play, Loader2, CheckCircle2, AlertCircle, Clock, History, GitBranch as Github,
-  ArrowRight, Activity, Box, XCircle, LogOut, Settings as SettingsIcon,
-  Calendar, Building, Bell, LayoutDashboard, Brain, Flame, Info, Search,
-  Trash2, Copy, PlayCircle, Zap, Check, Skull, AlertTriangle, RefreshCw, Menu, Lock, Eye, EyeOff,
-  ChevronRight, Terminal, Sparkles, Moon, Sun
+  Shield, Loader2, CheckCircle2, AlertCircle, Clock, History,
+  GitBranch as Github, ArrowRight, Activity, XCircle, LogOut,
+  Settings as SettingsIcon, Calendar, Building, Bell,
+  LayoutDashboard, Brain, Flame, Info, Search, Trash2,
+  Copy, PlayCircle, Zap, Check, Skull, AlertTriangle,
+  RefreshCw, Menu, Lock, Eye, EyeOff, ChevronRight,
+  Sparkles, Moon, Sun, Terminal, Play, ArrowUpRight
 } from 'lucide-react';
 
-// ─── Animation Variants ────────────────────────────────────────────────────────
+/* ─── motion presets ─────────────────────────────── */
+const ease = [0.22, 1, 0.36, 1] as const;
+const fadeUp  = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease } } };
+const fadeIn  = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.4 } } };
+const scaleIn = { hidden: { opacity: 0, scale: 0.92 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease } } };
+const stagger = { visible: { transition: { staggerChildren: 0.07, delayChildren: 0.05 } } };
 
-const fadeInUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } }
-};
-
-const staggerContainer = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.1 }
-  }
-};
-
-const scaleIn = {
-  hidden: { opacity: 0, scale: 0.9 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } }
-};
-
-const slideInRight = {
-  hidden: { opacity: 0, x: -20 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } }
-};
-
-const glowPulse = {
-  animate: {
-    boxShadow: [
-      '0 0 20px -5px rgba(0, 255, 140, 0.3)',
-      '0 0 40px -5px rgba(0, 255, 140, 0.5)',
-      '0 0 20px -5px rgba(0, 255, 140, 0.3)',
-    ],
-    transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' }
-  }
-};
-
-// ─── Hooks ────────────────────────────────────────────────────────────────────
-
-const useRunDuration = (run: Run | null) => {
-  const [duration, setDuration] = useState<number>(0);
+/* ─── animated number ────────────────────────────── */
+const Num = ({ val }: { val: number }) => {
+  const [n, setN] = useState(0);
   useEffect(() => {
-    if (!run) { setDuration(0); return; }
+    if (val === 0) { setN(0); return; }
+    const steps = 40, inc = val / steps;
+    let cur = 0;
+    const t = setInterval(() => {
+      cur += inc;
+      if (cur >= val) { clearInterval(t); setN(val); } else setN(Math.floor(cur));
+    }, 18);
+    return () => clearInterval(t);
+  }, [val]);
+  return <>{n}</>;
+};
+
+/* ─── agent meta ─────────────────────────────────── */
+const AGENTS: Record<string, { abbr: string; color: string }> = {
+  'Repo Scanner':      { abbr: 'RS', color: '#2563EB' },
+  'CVE Lookup':        { abbr: 'CV', color: '#7C3AED' },
+  'CVE Lookup Agent':  { abbr: 'CV', color: '#7C3AED' },
+  'Context Analyst':   { abbr: 'CA', color: '#0891B2' },
+  'Patch Planner':     { abbr: 'PP', color: '#4338CA' },
+  'Validator':         { abbr: 'VA', color: '#D97706' },
+  'Retry Controller':  { abbr: 'RC', color: '#DC2626' },
+  'GitHub PR Agent':   { abbr: 'GP', color: '#059669' },
+  'Alert Agent':       { abbr: 'AL', color: '#B45309' },
+  'Orchestrator':      { abbr: 'OR', color: '#374151' },
+  'Remediation Output Agent': { abbr: 'RO', color: '#059669' },
+};
+const agentMeta = (n: string) => AGENTS[n] || { abbr: n.slice(0, 2).toUpperCase(), color: '#374151' };
+
+/* ─── severity helpers ───────────────────────────── */
+const sevClass = (s: string) => {
+  const u = s.toUpperCase();
+  if (u === 'CRITICAL') return 'tag-red sev-critical';
+  if (u === 'HIGH')     return 'tag-orange sev-high';
+  if (u === 'MEDIUM')   return 'tag-amber sev-medium';
+  return 'sev-low';
+};
+const SevIcon = ({ s }: { s: string }) => {
+  const u = s.toUpperCase();
+  if (u === 'CRITICAL') return <Skull size={11} />;
+  if (u === 'HIGH')     return <Flame size={11} />;
+  if (u === 'MEDIUM')   return <AlertTriangle size={11} />;
+  return <Info size={11} />;
+};
+
+/* ─── run duration hook ──────────────────────────── */
+const useDuration = (run: Run | null) => {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    if (!run) return void setSecs(0);
     if (run.status === 'COMPLETED' || run.status === 'FAILED') {
       const end = run.endTime ? new Date(run.endTime).getTime() : Date.now();
-      setDuration(Math.floor((end - new Date(run.startTime).getTime()) / 1000));
-      return;
+      return void setSecs(Math.floor((end - new Date(run.startTime).getTime()) / 1000));
     }
     const start = new Date(run.startTime).getTime();
-    const iv = setInterval(() => setDuration(Math.floor((Date.now() - start) / 1000)), 1000);
+    const iv = setInterval(() => setSecs(Math.floor((Date.now() - start) / 1000)), 1000);
     return () => clearInterval(iv);
   }, [run]);
-  return duration;
+  return secs;
 };
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+/* ─── GH repo type ───────────────────────────────── */
+type GhRepo = { id: number; full_name: string; html_url: string; private: boolean };
 
-const AnimatedNumber = ({ value }: { value: number }) => {
-  const [disp, setDisp] = useState(0);
-  useEffect(() => {
-    let start = 0;
-    if (start === value) { setDisp(value); return; }
-    const steps = 1000 / 30;
-    const inc = value / steps;
-    const t = setInterval(() => {
-      start += inc;
-      if (start >= value) { clearInterval(t); setDisp(value); }
-      else setDisp(Math.floor(start));
-    }, 30);
-    return () => clearInterval(t);
-  }, [value]);
-  return <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>{disp}</motion.span>;
-};
+/* ═══════════════════════════════════════════════════
+   SUB-COMPONENTS
+═══════════════════════════════════════════════════ */
 
-// Copy to clipboard helper with animation
-const useCopy = () => {
-  const [copied, setCopied] = useState(false);
-  const copy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      return true;
-    } catch { return false; }
-  };
-  return { copied, copy };
-};
-
-// Retry dots visualization
-const RetryDots = ({ attempts }: { attempts?: number }) => {
-  if (!attempts || attempts < 2) return null;
-  return (
-    <motion.div className="retry-dots" style={{ marginLeft: '8px' }}>
-      {Array.from({ length: Math.min(attempts, 5) }).map((_, i) => (
-        <motion.div
-          key={i}
-          className={`retry-dot ${i === attempts - 1 ? 'success' : 'failed'}`}
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: i * 0.1 }}
-        />
-      ))}
-    </motion.div>
-  );
-};
-
-// Animated background orbs
-const BackgroundOrbs = () => (
-  <div className="fixed inset-0 overflow-hidden pointer-events-none">
-    <motion.div
-      className="orb-glow"
-      style={{ width: 600, height: 600, background: 'var(--lime)', top: '-20%', left: '-10%' }}
-      animate={{ x: [0, 50, 0], y: [0, 30, 0] }}
-      transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
-    />
-    <motion.div
-      className="orb-glow"
-      style={{ width: 400, height: 400, background: 'var(--cyan)', bottom: '10%', right: '-5%' }}
-      animate={{ x: [0, -30, 0], y: [0, -50, 0] }}
-      transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
-    />
-    <motion.div
-      className="orb-glow"
-      style={{ width: 300, height: 300, background: 'var(--violet)', top: '40%', right: '20%' }}
-      animate={{ x: [0, 40, 0], y: [0, -20, 0] }}
-      transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-    />
+/* Ambient orbs */
+const Orbs = () => (
+  <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
+    {[
+      { w: 700, h: 600, top: '-20%', left: '-8%',  c: 'rgba(0,255,135,0.06)', dur: '22s' },
+      { w: 500, h: 450, top: '40%',  right: '-5%', c: 'rgba(0,212,255,0.04)', dur: '17s' },
+      { w: 380, h: 350, top: '60%',  left: '15%',  c: 'rgba(157,120,247,0.035)', dur: '19s' },
+    ].map((o, i) => (
+      <motion.div
+        key={i}
+        className="orb"
+        style={{ width: o.w, height: o.h, top: o.top, left: (o as any).left, right: (o as any).right, background: o.c }}
+        animate={{ x: [0, 50, -20, 0], y: [0, -30, 20, 0] }}
+        transition={{ duration: parseFloat(o.dur), repeat: Infinity, ease: 'easeInOut' }}
+      />
+    ))}
   </div>
 );
 
-// Severity gauge visualization
-const SeverityGauge = ({ critical, high, medium, low }: { critical: number; high: number; medium: number; low: number }) => {
-  const total = critical + high + medium + low || 1;
-  const radius = 60;
-  const circumference = 2 * Math.PI * radius;
-  
-  const segments = [
-    { value: critical, color: 'var(--red)', label: 'Critical' },
-    { value: high, color: 'var(--orange)', label: 'High' },
-    { value: medium, color: 'var(--amber)', label: 'Medium' },
-    { value: low, color: 'var(--blue)', label: 'Low' },
-  ];
+/* Timeline event row */
+const EventRow = ({ ev, run, i }: { ev: RunEvent; run: Run; i: number }) => {
+  const isPR      = ev.agentName === 'GitHub PR Agent' && ev.toolName === 'PR Created';
+  const isRetryW  = ev.agentName === 'Retry Controller' && ev.status === 'WARNING';
+  const isRetryOK = ev.agentName === 'Retry Controller' && ev.status === 'SUCCESS';
+  const meta      = agentMeta(ev.agentName);
 
-  let offset = 0;
-  
-  return (
-    <div className="flex items-center gap-8">
-      <div className="relative" style={{ width: 150, height: 150 }}>
-        <svg width="150" height="150" viewBox="0 0 150 150">
-          <circle cx="75" cy="75" r={radius} fill="none" stroke="var(--border-dim)" strokeWidth="12" />
-          {segments.map((seg, i) => {
-            const segLength = (seg.value / total) * circumference;
-            const currentOffset = offset;
-            offset += segLength;
-            return (
-              <motion.circle
-                key={i}
-                cx="75"
-                cy="75"
-                r={radius}
-                fill="none"
-                stroke={seg.color}
-                strokeWidth="12"
-                strokeLinecap="round"
-                strokeDasharray={`${segLength} ${circumference}`}
-                strokeDashoffset={-currentOffset}
-                style={{ transformOrigin: 'center', transform: 'rotate(-90deg)' }}
-                initial={{ strokeDasharray: `0 ${circumference}` }}
-                animate={{ strokeDasharray: `${segLength} ${circumference}` }}
-                transition={{ duration: 1, delay: i * 0.15, ease: [0.22, 1, 0.36, 1] }}
-              />
-            );
-          })}
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <motion.span
-            className="display text-3xl font-extrabold"
-            style={{ color: 'var(--fg)' }}
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-          >
-            {total}
-          </motion.span>
-          <span className="text-xs uppercase tracking-wider" style={{ color: 'var(--fg-3)' }}>Total</span>
-        </div>
-      </div>
-      <div className="flex flex-col gap-2">
-        {segments.map((seg, i) => (
-          <motion.div
-            key={i}
-            className="flex items-center gap-3"
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.5 + i * 0.1 }}
-          >
-            <div className="w-3 h-3 rounded-full" style={{ background: seg.color, boxShadow: `0 0 10px ${seg.color}40` }} />
-            <span className="text-sm" style={{ color: 'var(--fg-2)' }}>{seg.label}</span>
-            <span className="font-mono font-bold" style={{ color: seg.color }}>{seg.value}</span>
-          </motion.div>
-        ))}
-      </div>
-    </div>
-  );
-};
+  const evClass = isPR ? 'pr-hero' :
+    isRetryW  ? 'event-card ev-warning' :
+    isRetryOK ? 'event-card ev-success' :
+    `event-card ev-${ev.status.toLowerCase()}`;
 
-type GithubRepo = { id: number; full_name: string; html_url: string; private: boolean };
-
-const AGENT_META: Record<string, { initials: string; bg: string }> = {
-  'Repo Scanner':      { initials: 'RS', bg: '#2563EB' },
-  'CVE Lookup':        { initials: 'CV', bg: '#7C3AED' },
-  'CVE Lookup Agent':  { initials: 'CV', bg: '#7C3AED' },
-  'Context Analyst':   { initials: 'CA', bg: '#0891B2' },
-  'Patch Planner':     { initials: 'PP', bg: '#4338CA' },
-  'Validator':         { initials: 'VA', bg: '#D97706' },
-  'Retry Controller':  { initials: 'RC', bg: '#DC2626' },
-  'GitHub PR Agent':   { initials: 'GP', bg: '#059669' },
-  'Alert Agent':       { initials: 'AL', bg: '#B45309' },
-  'Orchestrator':      { initials: 'OR', bg: '#374151' },
-  'Remediation Output Agent': { initials: 'RO', bg: '#059669' },
-};
-const getAgentMeta = (name: string) => AGENT_META[name] || { initials: name.slice(0, 2).toUpperCase(), bg: '#374151' };
-
-// ─── PR Celebration Card ───────────────────────────────────────────────────────
-
-const PRCelebrationCard = ({ run }: { run: Run }) => (
-  <motion.div
-    style={{
-      position: 'relative',
-      background: 'linear-gradient(135deg, rgba(0, 255, 140, 0.15) 0%, rgba(0, 255, 140, 0.05) 100%)',
-      border: '1px solid var(--border-lime)',
-      borderRadius: '18px',
-      padding: '48px 32px',
-      textAlign: 'center',
-      overflow: 'hidden',
-      boxShadow: `0 0 60px -20px var(--lime-glow), inset 0 0 40px -20px var(--lime-dim)`
-    }}
-    initial={{ opacity: 0, scale: 0.95, y: 20 }}
-    animate={{ opacity: 1, scale: 1, y: 0 }}
-    transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-  >
-    {/* Top gradient line */}
-    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '1px', background: 'linear-gradient(90deg, transparent, var(--lime), transparent)', opacity: 0.6 }} />
-    
-    {/* Bottom gradient line */}
-    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '1px', background: 'linear-gradient(90deg, transparent, var(--lime), transparent)', opacity: 0.6 }} />
-    
-    <motion.div
-      animate={{ scale: [1, 1.1, 1] }}
-      transition={{ duration: 2, repeat: Infinity }}
-      style={{ marginBottom: '16px' }}
-    >
-      <Sparkles size={40} style={{ color: 'var(--lime)', margin: '0 auto' }} />
-    </motion.div>
-    
-    <h2 className="display" style={{ fontSize: '28px', fontWeight: 800, color: 'var(--lime)', margin: '16px 0 8px' }}>
-      Pull Request Created
-    </h2>
-    <p style={{ color: 'var(--fg-2)', marginBottom: '24px', fontSize: '15px' }}>
-      Your vulnerability fixes have been merged into a new PR
-    </p>
-    
-    {run.prUrl && (
-      <motion.a
-        href={run.prUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-      >
-        <button className="btn-lime" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '14px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 600 }}>
-          <Github size={16} /> View PR on GitHub
-          <ArrowRight size={14} />
-        </button>
-      </motion.a>
-    )}
-  </motion.div>
-);
-
-// ─── Timeline Event Card ───────────────────────────────────────────────────────
-
-const TimelineEventCard = ({ event, run, index }: { event: RunEvent; run: Run; index: number }) => {
-  const isPR = event.agentName === 'GitHub PR Agent' && event.toolName === 'PR Created';
-  const isRetryWarn = event.agentName === 'Retry Controller' && event.status === 'WARNING';
-  const isRetryOk = event.agentName === 'Retry Controller' && event.status === 'SUCCESS';
-  const isContext = event.agentName === 'Context Analyst';
-  const meta = getAgentMeta(event.agentName);
-
-  const relativeTime = (ts: string) => {
-    const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
-    if (s < 60) return `${s}s ago`;
-    return `${Math.floor(s / 60)}m ago`;
+  const age = () => {
+    const s = Math.floor((Date.now() - new Date(ev.timestamp).getTime()) / 1000);
+    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m`;
   };
 
-  const cardClass = isPR ? 'pr-card' :
-    isRetryWarn ? 'event-card retry-warn' :
-    isRetryOk   ? 'event-card retry-success' :
-    `event-card status-${event.status.toLowerCase()}`;
-
   return (
     <motion.div
-      className="relative flex items-start gap-4 mb-5"
-      initial={{ opacity: 0, x: -20 }}
+      className="flex items-start gap-4 mb-4"
+      initial={{ opacity: 0, x: -16 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ delay: i * 0.04, duration: 0.4, ease }}
     >
-      {/* Avatar */}
       <motion.div
-        className="agent-avatar shrink-0"
-        style={{ background: meta.bg }}
-        whileHover={{ scale: 1.1 }}
+        className="agent-pip"
+        style={{ background: meta.color }}
+        whileHover={{ scale: 1.12 }}
         transition={{ type: 'spring', stiffness: 400, damping: 17 }}
       >
-        {meta.initials}
+        {meta.abbr}
       </motion.div>
 
-      {/* Card */}
       <motion.div
-        className={`flex-1 ${cardClass} p-4`}
-        style={{ borderRadius: '14px' }}
-        whileHover={{ x: 4 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+        className={`flex-1 ${evClass}`}
+        whileHover={{ x: 3 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 28 }}
       >
         {isPR ? (
-          <div style={{ position: 'relative', zIndex: 1 }}>
+          <div className="relative z-10">
             <motion.p
-              className="display"
-              style={{ fontSize: '20px', fontWeight: 800, color: 'var(--lime)', marginBottom: '8px' }}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
+              className="display text-2xl font-extrabold mb-2"
+              style={{ color: 'var(--lime)' }}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
             >
-              <Sparkles className="inline mr-2" size={18} /> Pull Request Created
+              <Sparkles className="inline mr-2" size={20} />Pull Request Created
             </motion.p>
-            <p style={{ color: 'var(--fg-2)', marginBottom: '20px', fontSize: '14px' }}>{event.message}</p>
+            <p className="text-sm mb-5" style={{ color: 'var(--t1)' }}>{ev.message}</p>
             {run.prUrl && (
-              <motion.a
-                href={run.prUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <button className="btn-lime" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '12px', fontSize: '13px' }}>
-                  <Github size={16} /> View PR on GitHub
-                  <ArrowRight size={14} />
+              <motion.a href={run.prUrl} target="_blank" rel="noopener noreferrer"
+                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <button className="btn btn-primary text-xs px-4 py-2 rounded-xl">
+                  <Github size={14} />View on GitHub<ArrowUpRight size={13} />
                 </button>
               </motion.a>
             )}
           </div>
         ) : (
           <>
-            {/* Header row */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-              <span className="chip display" style={{ fontFamily: 'var(--font-display)', fontSize: '10px', letterSpacing: '0.08em', background: meta.bg + '22', color: 'var(--fg)', borderColor: meta.bg + '44' }}>
-                {event.agentName}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="tag text-[10px]" style={{ background: meta.color + '22', borderColor: meta.color + '44', color: 'var(--t0)', fontFamily: 'var(--f-display)' }}>
+                {ev.agentName}
               </span>
-              <span className="mono" style={{ fontSize: '12px', color: 'var(--fg-3)' }}>-&gt;</span>
-              <span className="mono" style={{ fontSize: '12px', color: 'var(--fg-2)' }}>{event.toolName}</span>
-              <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--fg-3)', fontFamily: 'var(--font-mono)' }}>{relativeTime(event.timestamp)}</span>
+              <span className="mono text-xs" style={{ color: 'var(--t2)' }}>›</span>
+              <span className="mono text-xs" style={{ color: 'var(--t1)' }}>{ev.toolName}</span>
+              <span className="ml-auto mono text-[11px]" style={{ color: 'var(--t3)' }}>{age()}</span>
             </div>
-
-            {/* Message */}
-            <p style={{
-              fontSize: '13.5px',
-              color: isRetryWarn ? 'var(--red)' : isRetryOk ? 'var(--lime)' : 'var(--fg)',
-              fontFamily: isRetryWarn || isRetryOk ? 'var(--font-mono)' : 'var(--font-body)',
-              lineHeight: 1.5
+            <p className="text-sm leading-relaxed" style={{
+              color: isRetryW ? 'var(--red)' : isRetryOK ? 'var(--lime)' : 'var(--t0)',
+              fontFamily: isRetryW || isRetryOK ? 'var(--f-mono)' : 'var(--f-body)',
+              fontSize: isRetryW || isRetryOK ? '12px' : '13.5px',
             }}>
-              {event.message}
+              {ev.message}
             </p>
-
-            {/* Context analyst confidence */}
-            {isContext && event.metadata?.confidence && (
-              <motion.div
-                style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-              >
-                <span className={`chip ${event.metadata.confidence === 'HIGH' ? 'badge-lime' : event.metadata.confidence === 'MEDIUM' ? 'badge-medium' : 'badge-high'}`}>
-                  {event.metadata.confidence} CONF
+            {ev.metadata?.confidence && (
+              <div className="flex items-center gap-2 mt-2">
+                <span className={`tag text-[10px] ${ev.metadata.confidence === 'HIGH' ? 'tag-lime' : ev.metadata.confidence === 'MEDIUM' ? 'tag-amber' : 'tag-orange'}`}>
+                  {ev.metadata.confidence} CONF
                 </span>
-                {event.metadata.affectedFiles?.length > 0 && (
-                  <span className="chip">{event.metadata.affectedFiles.length} files</span>
+                {ev.metadata.affectedFiles?.length > 0 && (
+                  <span className="tag text-[10px]">{ev.metadata.affectedFiles.length} files</span>
                 )}
-              </motion.div>
-            )}
-
-            {/* Generic metadata */}
-            {event.metadata && typeof event.metadata === 'object' && !isContext && Object.keys(event.metadata).length > 0 && (
-              <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {Object.entries(event.metadata)
-                  .filter(([k]) => k !== 'attempt')
-                  .map(([k, v]) => (
-                    <span key={k} className="chip">
-                      {k}: <strong style={{ color: 'var(--fg)' }}>{String(v)}</strong>
-                    </span>
-                  ))}
               </div>
             )}
           </>
@@ -417,294 +200,229 @@ const TimelineEventCard = ({ event, run, index }: { event: RunEvent; run: Run; i
   );
 };
 
-// ─── Main App ─────────────────────────────────────────────────────────────────
+/* Severity donut */
+const Donut = ({ crit, high, med, low }: { crit: number; high: number; med: number; low: number }) => {
+  const total = crit + high + med + low || 1;
+  const R = 58, C = 2 * Math.PI * R;
+  const segs = [
+    { v: crit, c: 'var(--red)',    l: 'Critical' },
+    { v: high, c: 'var(--orange)', l: 'High' },
+    { v: med,  c: 'var(--amber)',  l: 'Medium' },
+    { v: low,  c: 'var(--blue)',   l: 'Low' },
+  ];
+  let off = 0;
+  return (
+    <div className="flex items-center gap-10">
+      <div className="relative shrink-0" style={{ width: 140, height: 140 }}>
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <circle cx="70" cy="70" r={R} fill="none" stroke="var(--b1)" strokeWidth="10" />
+          {segs.map((s, i) => {
+            const len = (s.v / total) * C;
+            const cur = off; off += len;
+            return (
+              <motion.circle key={i} cx="70" cy="70" r={R} fill="none" stroke={s.c}
+                strokeWidth="10" strokeLinecap="round"
+                strokeDasharray={`${len} ${C}`} strokeDashoffset={-cur}
+                style={{ transformOrigin: 'center', transform: 'rotate(-90deg)' }}
+                initial={{ strokeDasharray: `0 ${C}` }}
+                animate={{ strokeDasharray: `${len} ${C}` }}
+                transition={{ duration: 0.9, delay: i * 0.12, ease }}
+              />
+            );
+          })}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <motion.span className="display text-3xl font-extrabold" style={{ color: 'var(--t0)' }}
+            initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.3 }}>
+            {total}
+          </motion.span>
+          <span className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--t2)' }}>total</span>
+        </div>
+      </div>
+      <div className="flex flex-col gap-3">
+        {segs.map((s, i) => (
+          <motion.div key={i} className="flex items-center gap-3"
+            initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 + i * 0.08 }}>
+            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.c, boxShadow: `0 0 10px ${s.c}60` }} />
+            <span className="text-sm" style={{ color: 'var(--t1)' }}>{s.l}</span>
+            <span className="mono font-bold text-sm ml-auto" style={{ color: s.c }}>{s.v}</span>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
+/* ═══════════════════════════════════════════════════
+   MAIN APP
+═══════════════════════════════════════════════════ */
 export default function App() {
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('theme');
-    if (saved) return saved === 'dark';
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  /* ── theme ── */
+  const [dark, setDark] = useState(() => {
+    const s = localStorage.getItem('theme');
+    return s ? s === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
-
-  const toggleTheme = () => {
-    setIsDarkMode(prev => !prev);
-  };
-
   useEffect(() => {
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-    if (isDarkMode) {
-      document.documentElement.classList.remove('light');
-    } else {
-      document.documentElement.classList.add('light');
-    }
-  }, [isDarkMode]);
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+    document.documentElement.classList.toggle('light', !dark);
+  }, [dark]);
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [githubToken, setGithubToken] = useState('');
-  const [githubRepos, setGithubRepos] = useState<GithubRepo[]>([]);
-  const [selectedRepo, setSelectedRepo] = useState('');
-  const [isRepoLoading, setIsRepoLoading] = useState(false);
+  /* ── auth ── */
+  const [authed, setAuthed]   = useState(false);
+  const [pat, setPat]         = useState('');
+  const [showPat, setShowPat] = useState(false);
+  const [repos, setRepos]     = useState<GhRepo[]>([]);
+  const [repoLoading, setRepoLoading] = useState(false);
 
-  const [currentTab, setCurrentTab] = useState<'dashboard' | 'history' | 'schedules' | 'settings'>('dashboard');
-  const [currentRun, setCurrentRun] = useState<Run | null>(null);
+  /* ── nav ── */
+  const [tab, setTab] = useState<'dashboard' | 'history' | 'schedules' | 'settings'>('dashboard');
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  /* ── scan state ── */
+  const [run, setRun]         = useState<Run | null>(null);
+  const [events, setEvents]   = useState<RunEvent[]>([]);
   const [repoUrl, setRepoUrl] = useState('');
   const [orgName, setOrgName] = useState('');
-  const [events, setEvents] = useState<RunEvent[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr]         = useState<string | null>(null);
+
+  /* ── other data ── */
+  const [history, setHistory]     = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
-  const [settings, setSettings] = useState({ webhookUrl: '', email: '', githubToken: '', groqApiKey: '', webhookSecret: '' });
+  const [settings, setSettings]   = useState({ webhookUrl: '', email: '', githubToken: '', groqApiKey: '', webhookSecret: '' });
+  const [toasts, setToasts]       = useState<{ id: string; msg: string; type: 'success' | 'error' | 'info' }[]>([]);
+  const [expanded, setExpanded]   = useState<Record<string, boolean>>({});
+  const [search, setSearch]       = useState('');
+  const [showSchModal, setShowSchModal] = useState(false);
+  const [showHelp, setShowHelp]   = useState(false);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [toasts, setToasts] = useState<{ id: string; message: string; type: 'info' | 'success' | 'error' }[]>([]);
-  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  /* ── schedule form ── */
+  const [schRepo, setSchRepo]   = useState('');
+  const [schTime, setSchTime]   = useState('00:00');
+  const [schDom, setSchDom]     = useState('*');
+  const [schMon, setSchMon]     = useState('*');
+  const [schWday, setSchWday]   = useState('*');
 
-  const [scheduleRepo, setScheduleRepo] = useState('');
-  const [scheduleTime, setScheduleTime] = useState('00:00');
-  const [scheduleDayOfMonth, setScheduleDayOfMonth] = useState('*');
-  const [scheduleMonth, setScheduleMonth] = useState('*');
-  const [scheduleWeekday, setScheduleWeekday] = useState('*');
-  const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [searchFilter, setSearchFilter] = useState('');
-  const [showHelpModal, setShowHelpModal] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showGithubSettingToken, setShowGithubSettingToken] = useState(false);
-  const [showGroqKey, setShowGroqKey] = useState(false);
-  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
-  const [showLoginPat, setShowLoginPat] = useState(false);
-  const [copiedWebhook, setCopiedWebhook] = useState(false);
+  /* ── settings visibility ── */
+  const [showGhTok, setShowGhTok]     = useState(false);
+  const [showGroq, setShowGroq]       = useState(false);
+  const [showWhSec, setShowWhSec]     = useState(false);
+  const [copiedWh, setCopiedWh]       = useState(false);
 
-  const pollInterval = useRef<number | null>(null);
-  const duration = useRunDuration(currentRun);
+  const pollRef = useRef<number | null>(null);
+  const dur = useDuration(run);
 
-  // Mouse tracking for interactive effects
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-  const springConfig = { damping: 25, stiffness: 150 };
-  const mouseXSpring = useSpring(mouseX, springConfig);
-  const mouseYSpring = useSpring(mouseY, springConfig);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      mouseX.set(e.clientX);
-      mouseY.set(e.clientY);
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
-  // ─── Toast helper ───────────────────────────────────────────────────────────
-  const addToast = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
-    const id = Math.random().toString(36).slice(2, 9);
-    setToasts(p => [...p, { id, message, type }]);
+  /* ── toast ── */
+  const toast = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts(p => [...p, { id, msg, type }]);
     setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 4000);
   };
 
-  // ─── Auth ───────────────────────────────────────────────────────────────────
+  /* ── auth ── */
   useEffect(() => {
     const saved = localStorage.getItem('githubToken');
-    if (!saved) return;
-    setGithubToken(saved);
-    loginWithGithubToken(saved);
+    if (saved) { setPat(saved); authWithPat(saved); }
   }, []);
 
-  const fetchGithubRepos = async (token: string) => {
-    const repos: GithubRepo[] = [];
-    let page = 1, hasMore = true;
-    while (hasMore) {
-      const res = await fetch(`https://api.github.com/user/repos?per_page=100&sort=updated&page=${page}`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
-      });
-      if (!res.ok) throw new Error(res.status === 401 ? 'Invalid GitHub token' : `HTTP ${res.status}`);
-      const data = await res.json();
-      repos.push(...data);
-      hasMore = data.length === 100;
-      page++;
-    }
-    return repos;
-  };
-
-  const loginWithGithubToken = async (token: string) => {
-    setIsRepoLoading(true);
+  const authWithPat = async (token: string) => {
+    setRepoLoading(true);
     try {
-      const repos = await fetchGithubRepos(token);
-      setGithubRepos(repos);
+      const repos: GhRepo[] = [];
+      let pg = 1, more = true;
+      while (more) {
+        const r = await fetch(`https://api.github.com/user/repos?per_page=100&sort=updated&page=${pg}`,
+          { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } });
+        if (!r.ok) throw new Error(r.status === 401 ? 'Invalid token' : `HTTP ${r.status}`);
+        const d = await r.json();
+        repos.push(...d); more = d.length === 100; pg++;
+      }
+      setRepos(repos);
       localStorage.setItem('githubToken', token);
-      setIsAuthenticated(true);
+      setAuthed(true);
       fetchData();
-      addToast('GitHub connected', 'success');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Failed to connect';
-      setIsAuthenticated(false);
-      setGithubRepos([]);
+      toast('GitHub connected', 'success');
+    } catch (e: any) {
+      toast(e.message || 'Failed to connect', 'error');
       localStorage.removeItem('githubToken');
-      addToast(msg, 'error');
-    } finally {
-      setIsRepoLoading(false);
-    }
+    } finally { setRepoLoading(false); }
   };
 
-  const handleGithubLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!githubToken.trim()) { addToast('Enter a token to continue', 'error'); return; }
-    await loginWithGithubToken(githubToken.trim());
-  };
+  const handleLogin = (e: React.FormEvent) => { e.preventDefault(); if (pat.trim()) authWithPat(pat.trim()); };
+  const logout = () => { localStorage.removeItem('githubToken'); setAuthed(false); setPat(''); setRepos([]); };
 
-  const handleLogout = () => {
-    localStorage.removeItem('githubToken');
-    setIsAuthenticated(false);
-    setGithubToken('');
-    setGithubRepos([]);
-    setSelectedRepo('');
-  };
-
-  // ─── Data fetching ──────────────────────────────────────────────────────────
-  useEffect(() => { if (isAuthenticated) fetchData(); }, [isAuthenticated, currentTab]);
+  /* ── data ── */
+  useEffect(() => { if (authed) fetchData(); }, [authed, tab]);
 
   const fetchData = async () => {
     try {
-      if (currentTab === 'history' || currentTab === 'dashboard') {
-        const res = await fixstackApi.getScans();
-        setHistory(res.data);
-      }
-      if (currentTab === 'schedules') {
-        const res = await fixstackApi.getSchedules();
-        setSchedules(res.data);
-      }
-      if (currentTab === 'settings') {
-        const res = await fixstackApi.getSettings();
-        setSettings(res.data);
-      }
+      if (tab === 'history' || tab === 'dashboard') { const r = await fixstackApi.getScans(); setHistory(r.data); }
+      if (tab === 'schedules') { const r = await fixstackApi.getSchedules(); setSchedules(r.data); }
+      if (tab === 'settings')  { const r = await fixstackApi.getSettings();  setSettings(r.data); }
     } catch {}
   };
 
-  const validateUrl = (url: string) => url && url.startsWith('https://github.com/');
-  const isWildcardOrInRange = (v: string, min: number, max: number) => {
-    if (v === '*') return true;
-    if (!/^\d+$/.test(v)) return false;
-    const n = Number(v);
-    return n >= min && n <= max;
-  };
-
-  // ─── Scan control ───────────────────────────────────────────────────────────
-  const startScan = async (isDemo = false, selectedRepoUrl?: string) => {
-    const finalUrl = selectedRepoUrl || repoUrl;
-    if (!isDemo && !validateUrl(finalUrl)) {
-      setError('Enter a valid GitHub URL (https://github.com/...)');
-      return;
-    }
-    setIsLoading(true); setError(null); setCurrentRun(null); setEvents([]);
+  /* ── poll ── */
+  const stopPoll = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; setLoading(false); } };
+  const fetchRun = async (id: string) => {
     try {
-      const res = await fixstackApi.startScan(isDemo ? undefined : finalUrl);
-      addToast('Scan started', 'success');
-      fetchRun(res.data.runId);
-      startPolling(res.data.runId);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to start scan');
-      addToast('Failed to start scan', 'error');
-      setIsLoading(false);
+      const [rr, er] = await Promise.all([fixstackApi.getRun(id), fixstackApi.getEvents(id)]);
+      setRun(rr.data); setEvents(er.data);
+      if (rr.data.status === 'COMPLETED' || rr.data.status === 'FAILED') {
+        stopPoll();
+        if (rr.data.status === 'COMPLETED') toast('Scan complete!', 'success');
+      }
+    } catch {}
+  };
+  const startPoll = (id: string) => { stopPoll(); pollRef.current = window.setInterval(() => fetchRun(id), 2500); };
+  useEffect(() => () => stopPoll(), []);
+
+  /* ── scan ── */
+  const scan = async (demo = false, url?: string) => {
+    const final = url || repoUrl;
+    if (!demo && !final.startsWith('https://github.com/')) { setErr('Enter a valid GitHub URL'); return; }
+    setLoading(true); setErr(null); setRun(null); setEvents([]);
+    try {
+      const r = await fixstackApi.startScan(demo ? undefined : final);
+      toast('Scan started', 'success');
+      fetchRun(r.data.runId); startPoll(r.data.runId);
+    } catch (e: any) {
+      setErr(e.response?.data?.error || e.message || 'Failed');
+      toast('Failed to start scan', 'error'); setLoading(false);
     }
   };
 
-  const startOrgScan = async () => {
-    if (!orgName) { setError('Enter an org name'); return; }
-    setIsLoading(true); setError(null);
+  const orgScan = async () => {
+    if (!orgName) { setErr('Enter org name'); return; }
+    setLoading(true); setErr(null);
     try {
       await fixstackApi.startOrgScan(orgName);
-      addToast(`Queued scans for ${orgName}`, 'success');
-      setOrgName(''); setIsLoading(false); setCurrentTab('history');
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message);
-      addToast('Failed to queue org scan', 'error');
-      setIsLoading(false);
-    }
+      toast(`Queued org: ${orgName}`, 'success');
+      setOrgName(''); setLoading(false); setTab('history');
+    } catch (e: any) { setErr(e.message); setLoading(false); }
   };
 
   const loadRun = (id: string) => {
-    setCurrentTab('dashboard');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    setCurrentRun(null); setEvents([]);
-    fetchRun(id); startPolling(id);
+    setTab('dashboard'); window.scrollTo({ top: 0, behavior: 'smooth' });
+    setRun(null); setEvents([]); fetchRun(id); startPoll(id);
   };
 
-  const fetchRun = async (id: string) => {
-    try {
-      const [runRes, evRes] = await Promise.all([fixstackApi.getRun(id), fixstackApi.getEvents(id)]);
-      setCurrentRun(runRes.data);
-      setEvents(evRes.data);
-      if (runRes.data.status === 'COMPLETED' || runRes.data.status === 'FAILED') {
-        stopPolling();
-        if (runRes.data.status === 'COMPLETED') addToast('Scan completed!', 'success');
-      }
-    } catch {}
-  };
-
-  const startPolling = (id: string) => {
-    stopPolling();
-    pollInterval.current = window.setInterval(() => fetchRun(id), 2500);
-  };
-  const stopPolling = () => {
-    if (pollInterval.current) { clearInterval(pollInterval.current); pollInterval.current = null; setIsLoading(false); }
-  };
-  useEffect(() => () => stopPolling(), []);
-
-  // ─── Schedules ──────────────────────────────────────────────────────────────
+  /* ── schedule ── */
   const saveSchedule = async () => {
-    if (!validateUrl(scheduleRepo)) { addToast('Invalid GitHub URL', 'error'); return; }
-    const dom = scheduleDayOfMonth.trim() || '*', mon = scheduleMonth.trim() || '*';
-    if (!isWildcardOrInRange(dom, 1, 31)) { addToast('Day must be * or 1-31', 'error'); return; }
-    if (!isWildcardOrInRange(mon, 1, 12)) { addToast('Month must be * or 1-12', 'error'); return; }
-    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(scheduleTime)) { addToast('Time must be HH:MM', 'error'); return; }
-    const [h = '00', m = '00'] = scheduleTime.split(':');
+    if (!schRepo.startsWith('https://github.com/')) { toast('Invalid URL', 'error'); return; }
+    const [h = '00', m = '00'] = schTime.split(':');
     try {
-      await fixstackApi.addSchedule(scheduleRepo, `${m} ${h} ${dom} ${mon} ${scheduleWeekday}`);
-      setShowScheduleModal(false);
-      setScheduleRepo(''); setScheduleTime('00:00'); setScheduleDayOfMonth('*'); setScheduleMonth('*'); setScheduleWeekday('*');
-      fetchData(); addToast('Schedule saved', 'success');
-    } catch { addToast('Failed to save schedule', 'error'); }
+      await fixstackApi.addSchedule(schRepo, `${m} ${h} ${schDom} ${schMon} ${schWday}`);
+      setShowSchModal(false); setSchRepo(''); setSchTime('00:00'); setSchDom('*'); setSchMon('*'); setSchWday('*');
+      fetchData(); toast('Schedule created', 'success');
+    } catch { toast('Failed to save', 'error'); }
   };
 
-  const deleteScan = async (runId: string) => {
-    try {
-      await fixstackApi.deleteScan(runId);
-      setHistory(p => p.filter(s => s.runId !== runId));
-      addToast('Scan deleted', 'info');
-    } catch { addToast('Failed to delete scan', 'error'); }
-  };
-
-  const deleteSchedule = async (url: string) => {
-    try { await fixstackApi.deleteSchedule(url); fetchData(); addToast('Schedule deleted', 'info'); }
-    catch { addToast('Failed to delete schedule', 'error'); }
-  };
-
-  const runScheduleNow = async (url: string) => {
-    try {
-      await fixstackApi.runNowSchedule(url);
-      addToast('Triggered immediately', 'success');
-      setCurrentTab('history'); setTimeout(fetchData, 1000);
-    } catch { addToast('Failed to trigger scan', 'error'); }
-  };
-
-  const saveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await fixstackApi.saveSettings(settings.webhookUrl, settings.email, settings.githubToken, settings.groqApiKey, settings.webhookSecret);
-      addToast('Settings saved', 'success');
-    } catch { addToast('Failed to save settings', 'error'); }
-  };
-
-  const testWebhook = async () => {
-    try { await fixstackApi.testWebhook(); addToast('Test webhook sent', 'success'); }
-    catch (e: any) { addToast(e.response?.data?.error || 'Failed to send', 'error'); }
-  };
-
-  const clearHistory = () => { if (confirm('Clear all history?')) { setHistory([]); addToast('History cleared', 'info'); } };
-  const toggleRow = (id: string) => setExpandedRows(p => ({ ...p, [id]: !p[id] }));
-
-  // ─── Scan steps ─────────────────────────────────────────────────────────────
-  const getScanStep = () => {
-    if (!currentRun || events.length === 0) return 0;
-    if (currentRun.status === 'COMPLETED') return 5;
+  /* ── steps ── */
+  const getStep = () => {
+    if (!run || events.length === 0) return 0;
+    if (run.status === 'COMPLETED') return 5;
     const last = events[events.length - 1];
     if (last.agentName === 'GitHub PR Agent') return 4;
     if (['Patch Planner', 'Validator', 'Retry Controller'].includes(last.agentName)) return 3;
@@ -712,187 +430,126 @@ export default function App() {
     if (last.agentName?.includes('CVE')) return 1;
     return 0;
   };
-  const STEPS = ['Fetching', 'CVE Scan', 'AI Analysis', 'Patching', 'PR Created'];
+  const STEPS = ['Fetch', 'CVE Scan', 'AI Analysis', 'Patching', 'PR'];
 
-  // ─── Severity helpers ────────────────────────────────────────────────────────
-  const sevBadgeClass = (s: string) => {
-    const u = s.toUpperCase();
-    if (u === 'CRITICAL') return 'badge-critical';
-    if (u === 'HIGH') return 'badge-high';
-    if (u === 'MEDIUM') return 'badge-medium';
-    return 'badge-low';
-  };
-  const sevIcon = (s: string) => {
-    const u = s.toUpperCase();
-    if (u === 'CRITICAL') return <Skull size={12} />;
-    if (u === 'HIGH') return <Flame size={12} />;
-    if (u === 'MEDIUM') return <AlertTriangle size={12} />;
-    return <Info size={12} />;
-  };
+  /* ── cron label ── */
+  const cronLabel = (c: string) => ({ '0 0 * * *': 'Daily midnight', '0 0 * * 0': 'Weekly Sun', '0 0 * * 1': 'Weekly Mon', '0 * * * *': 'Hourly' }[c] || c);
+  const [ph = '00', pm = '00'] = schTime.split(':');
 
-  const formatCron = (c: string) => ({ '0 0 * * *': 'Daily at midnight', '0 0 * * 0': 'Weekly - Sunday', '0 0 * * 1': 'Weekly - Monday', '0 * * * *': 'Every hour' }[c] || c);
-
-  const tabs = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'history',   icon: History,         label: 'History'   },
-    { id: 'schedules', icon: Calendar,         label: 'Schedules' },
-    { id: 'settings',  icon: SettingsIcon,     label: 'Settings'  },
-  ] as const;
-
-  const [ph = '00', pm = '00'] = scheduleTime.split(':');
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // ─── LOGIN SCREEN ─────────────────────────────────────────────────────────────
-  // ─────────────────────────────────────────────────────────────────────────────
-  if (!isAuthenticated) {
+  /* ══════════════════════════════════════════════════
+     LOGIN
+  ══════════════════════════════════════════════════ */
+  if (!authed) {
     return (
-      <div className="login-bg bg-grid scanline-effect" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <BackgroundOrbs />
-        
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          style={{ width: '100%', maxWidth: '440px', position: 'relative', zIndex: 10 }}
-        >
+      <div className="mesh-bg grid-bg noise scanline relative" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Orbs />
 
+        <motion.div
+          className="relative z-10 w-full"
+          style={{ maxWidth: 440 }}
+          initial={{ opacity: 0, y: 28 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease }}
+        >
           {/* Logo */}
-          <motion.div
-            style={{ textAlign: 'center', marginBottom: '40px' }}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-          >
+          <motion.div className="text-center mb-10" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.15, duration: 0.5 }}>
             <motion.div
-              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '64px', height: '64px', borderRadius: '18px', background: 'var(--lime-dim)', border: '1px solid var(--border-lime)', marginBottom: '24px' }}
-              animate={{ 
-                boxShadow: ['0 0 30px var(--lime-glow)', '0 0 50px var(--lime-glow-strong)', '0 0 30px var(--lime-glow)'],
-                y: [0, -8, 0]
-              }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              className="inline-flex items-center justify-center rounded-2xl mb-6"
+              style={{ width: 68, height: 68, background: 'var(--lime-dim)', border: '1px solid var(--b-lime)' }}
+              animate={{ boxShadow: ['0 0 30px var(--lime-glow)', '0 0 55px var(--lime-strong)', '0 0 30px var(--lime-glow)'], y: [0, -7, 0] }}
+              transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
             >
-              <Shield size={28} style={{ color: 'var(--lime)' }} />
+              <Shield size={30} style={{ color: 'var(--lime)' }} />
             </motion.div>
-            <h1 className="display" style={{ fontSize: '36px', fontWeight: 800, margin: 0, letterSpacing: '-0.03em' }}>
-              <span className="gradient-text">FixStack</span>
+            <h1 className="display font-extrabold tracking-tight" style={{ fontSize: 42, letterSpacing: '-0.04em', lineHeight: 1 }}>
+              Fix<span className="text-grad">Stack</span>
             </h1>
-            <p style={{ color: 'var(--fg-3)', marginTop: '8px', fontSize: '14px' }}>
-              Autonomous dependency security agent
-            </p>
+            <p className="mt-3 text-sm" style={{ color: 'var(--t1)' }}>Autonomous dependency security agent</p>
           </motion.div>
 
           {/* Card */}
           <motion.div
-            className="glass-card gradient-border"
-            style={{ borderRadius: '24px', padding: '36px' }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
+            className="card-raised border-grad relative p-9"
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.5 }}
           >
-            <p className="section-heading" style={{ marginBottom: '24px' }}>Connect GitHub</p>
+            <p className="section-label mb-6">Connect GitHub</p>
 
-            <form onSubmit={handleGithubLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ position: 'relative' }}>
-                <Lock size={15} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)' }} />
-                <motion.input
-                  type={showLoginPat ? 'text' : 'password'}
-                  value={githubToken}
-                  onChange={e => setGithubToken(e.target.value)}
+            <form onSubmit={handleLogin} className="flex flex-col gap-4">
+              <div className="relative">
+                <Lock size={14} className="absolute" style={{ left: 16, top: '50%', transform: 'translateY(-50%)', color: 'var(--t2)' }} />
+                <input
+                  type={showPat ? 'text' : 'password'}
+                  value={pat}
+                  onChange={e => setPat(e.target.value)}
                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
                   autoFocus
-                  className="input-void input-mono"
-                  style={{ width: '100%', padding: '14px 48px', borderRadius: '12px', fontSize: '13px' }}
-                  whileFocus={{ scale: 1.01 }}
+                  className="input input-mono"
+                  style={{ paddingLeft: 44, paddingRight: 48 }}
                 />
-                <button type="button" onClick={() => setShowLoginPat(v => !v)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
-                  {showLoginPat ? <EyeOff size={15} /> : <Eye size={15} />}
+                <button type="button" onClick={() => setShowPat(v => !v)}
+                  className="absolute" style={{ right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--t2)', cursor: 'pointer' }}>
+                  {showPat ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
 
               <motion.button
                 type="submit"
-                disabled={isRepoLoading}
-                className="btn-lime"
-                style={{ padding: '15px', borderRadius: '12px', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', cursor: isRepoLoading ? 'not-allowed' : 'pointer', opacity: isRepoLoading ? 0.7 : 1 }}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                disabled={repoLoading}
+                className="btn btn-primary w-full justify-center"
+                style={{ borderRadius: 12, padding: '15px', fontSize: 14 }}
+                whileHover={{ scale: 1.015 }}
+                whileTap={{ scale: 0.985 }}
               >
-                {isRepoLoading ? <><Loader2 size={16} className="animate-spin" /> Connecting...</> : <><Github size={16} /> Connect GitHub</>}
+                {repoLoading
+                  ? <><Loader2 size={16} className="anim-spin" />Connecting…</>
+                  : <><Github size={16} />Connect GitHub</>
+                }
               </motion.button>
             </form>
 
-            {/* Features */}
+            {/* Feature pills */}
             <motion.div
-              style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '28px', justifyContent: 'center' }}
-              variants={staggerContainer}
-              initial="hidden"
-              animate="visible"
+              className="flex flex-wrap gap-2 mt-8 justify-center"
+              variants={stagger} initial="hidden" animate="visible"
             >
-              {['CVE Detection', 'AI Context', 'Auto PRs', 'Self-Correcting'].map((f, i) => (
-                <motion.span
-                  key={f}
-                  className="chip"
-                  style={{ fontSize: '11px' }}
-                  variants={fadeInUp}
-                >
-                  <span style={{ color: 'var(--lime)', fontSize: '8px' }}>●</span> {f}
+              {['CVE Detection', 'AI Context', 'Auto PRs', 'Self-Healing'].map(f => (
+                <motion.span key={f} className="tag text-[11px]" variants={fadeUp}>
+                  <span style={{ color: 'var(--lime)', fontSize: 7 }}>●</span>{f}
                 </motion.span>
               ))}
             </motion.div>
           </motion.div>
 
-          <motion.p
-            style={{ textAlign: 'center', marginTop: '20px', fontSize: '12px', color: 'var(--fg-3)' }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-          >
-            Requires a PAT with <code style={{ color: 'var(--fg-2)', fontSize: '11px', background: 'var(--surface)', padding: '2px 6px', borderRadius: '4px' }}>repo</code> scope.{' '}
-            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--lime)', textDecoration: 'none' }}>
-              Generate one -&gt;
-            </a>
+          <motion.p className="text-center mt-5 text-xs" style={{ color: 'var(--t2)' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+            Requires a PAT with{' '}
+            <code style={{ color: 'var(--t1)', background: 'var(--b1)', padding: '2px 7px', borderRadius: 5, fontSize: 11 }}>repo</code>
+            {' '}scope.{' '}
+            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer"
+              style={{ color: 'var(--lime)', textDecoration: 'none' }}>Generate →</a>
           </motion.p>
         </motion.div>
 
         {/* Theme toggle */}
         <motion.button
-          onClick={toggleTheme}
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'var(--glass-light)',
-            border: '1px solid var(--border-dim)',
-            color: 'var(--fg-2)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100
-          }}
-          whileHover={{ scale: 1.05, borderColor: 'var(--border-mid)' }}
-          whileTap={{ scale: 0.95 }}
+          onClick={() => setDark(d => !d)}
+          className="btn btn-ghost"
+          style={{ position: 'fixed', bottom: 24, right: 24, width: 46, height: 46, borderRadius: 12, padding: 0 }}
+          whileHover={{ scale: 1.07 }} whileTap={{ scale: 0.93 }}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
         >
-          {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+          {dark ? <Sun size={18} /> : <Moon size={18} />}
         </motion.button>
 
         {/* Toasts */}
-        <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <AnimatePresence>
             {toasts.map(t => (
-              <motion.div
-                key={t.id}
-                className={`toast toast-${t.type}`}
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 50 }}
-                transition={{ duration: 0.3 }}
-              >
-                {t.type === 'error' ? <AlertCircle size={14} /> : t.type === 'success' ? <CheckCircle2 size={14} /> : <Info size={14} />}
-                {t.message}
+              <motion.div key={t.id} className={`toast toast-${t.type}`}
+                initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 40 }}
+                transition={{ duration: 0.3 }}>
+                {t.type === 'success' ? <CheckCircle2 size={14} /> : t.type === 'error' ? <AlertCircle size={14} /> : <Info size={14} />}
+                {t.msg}
               </motion.div>
             ))}
           </AnimatePresence>
@@ -901,278 +558,211 @@ export default function App() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // ─── AUTHENTICATED LAYOUT ─────────────────────────────────────────────────────
-  // ─────────────────────────────────────────────────────────────────────────────
+  /* ══════════════════════════════════════════════════
+     AUTHENTICATED LAYOUT
+  ══════════════════════════════════════════════════ */
+  const navTabs = [
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { id: 'history',   icon: History,         label: 'History'   },
+    { id: 'schedules', icon: Calendar,         label: 'Schedules' },
+    { id: 'settings',  icon: SettingsIcon,     label: 'Settings'  },
+  ] as const;
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--void)', display: 'flex' }}>
-      <BackgroundOrbs />
+    <div className="mesh-bg noise relative" style={{ minHeight: '100vh', display: 'flex' }}>
+      <Orbs />
 
       {/* Mobile overlay */}
       <AnimatePresence>
-        {sidebarOpen && (
-          <motion.div
-            onClick={() => setSidebarOpen(false)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 40, backdropFilter: 'blur(8px)' }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          />
+        {mobileOpen && (
+          <motion.div onClick={() => setMobileOpen(false)}
+            className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
         )}
       </AnimatePresence>
 
-      {/* ─── SIDEBAR ─────────────────────────────────────────────────────── */}
+      {/* ─── SIDEBAR ─────────────────────────────────── */}
       <motion.aside
-        style={{
-          position: 'fixed', inset: '0 auto 0 0',
-          width: sidebarOpen ? '280px' : '0',
-          zIndex: 50,
-          background: 'linear-gradient(180deg, rgba(4, 6, 16, 0.98) 0%, rgba(8, 12, 26, 0.98) 100%)',
-          backdropFilter: 'blur(40px)',
-          borderRight: '1px solid var(--border-dim)',
-          display: 'flex', flexDirection: 'column',
-          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          overflow: 'hidden',
-        }}
-        className="md-sidebar"
+        className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}
+        style={{ zIndex: 50 }}
       >
-        <style>{`
-          @media (min-width: 768px) {
-            .md-sidebar { width: 80px !important; }
-          }
-          @media (min-width: 1200px) {
-            .md-sidebar { width: 280px !important; }
-          }
-          @media (max-width: 767px) {
-            .md-sidebar { width: ${sidebarOpen ? '280px' : '0'} !important; }
-          }
-          .sidebar-label { display: none; }
-          @media (min-width: 1200px) { .sidebar-label { display: inline; } }
-          @media (max-width: 767px) { .sidebar-label { display: ${sidebarOpen ? 'inline' : 'none'}; } }
-        `}</style>
-
         {/* Logo */}
-        <div style={{ padding: '24px 20px', borderBottom: '1px solid var(--border-void)', display: 'flex', alignItems: 'center', gap: '14px', minHeight: '72px' }}>
+        <div style={{ padding: '22px 18px', borderBottom: '1px solid var(--b0)', display: 'flex', alignItems: 'center', gap: 13, minHeight: 70 }}>
           <motion.div
-            style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'var(--lime-dim)', border: '1px solid var(--border-lime)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-            whileHover={{ scale: 1.05 }}
-            animate={{ boxShadow: ['0 0 20px var(--lime-glow)', '0 0 30px var(--lime-glow-strong)', '0 0 20px var(--lime-glow)'] }}
-            transition={{ duration: 2, repeat: Infinity }}
+            style={{ width: 38, height: 38, borderRadius: 11, background: 'var(--lime-dim)', border: '1px solid var(--b-lime)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}
+            whileHover={{ scale: 1.06 }}
+            animate={{ boxShadow: ['0 0 20px var(--lime-glow)', '0 0 35px var(--lime-strong)', '0 0 20px var(--lime-glow)'] }}
+            transition={{ duration: 2.5, repeat: Infinity }}
+            onClick={() => { setRun(null); setTab('dashboard'); }}
           >
-            <Shield size={18} style={{ color: 'var(--lime)' }} />
+            <Shield size={17} style={{ color: 'var(--lime)' }} />
           </motion.div>
-          <span className="display sidebar-label" style={{ fontWeight: 800, fontSize: '18px', color: 'var(--fg)', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+          <span className="display sidebar-lbl font-extrabold" style={{ fontSize: 18, letterSpacing: '-0.02em' }}>
             Fix<span style={{ color: 'var(--lime)' }}>Stack</span>
           </span>
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {tabs.map((tab, i) => (
+        <nav style={{ flex: 1, padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {navTabs.map((t, i) => (
             <motion.button
-              key={tab.id}
-              onClick={() => { setCurrentTab(tab.id); setSidebarOpen(false); }}
-              className={`nav-item ${currentTab === tab.id ? 'active' : ''}`}
-              whileHover={{ x: 4 }}
-              whileTap={{ scale: 0.98 }}
-              initial={{ opacity: 0, x: -20 }}
+              key={t.id}
+              onClick={() => { setTab(t.id); setMobileOpen(false); }}
+              className={`nav-item ${tab === t.id ? 'active' : ''}`}
+              whileHover={{ x: 3 }}
+              whileTap={{ scale: 0.97 }}
+              initial={{ opacity: 0, x: -12 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.05 }}
+              transition={{ delay: i * 0.04 }}
             >
-              <tab.icon size={18} style={{ flexShrink: 0 }} />
-              <span className="sidebar-label" style={{ whiteSpace: 'nowrap', fontSize: '14px' }}>{tab.label}</span>
+              <t.icon size={17} style={{ flexShrink: 0 }} />
+              <span className="sidebar-lbl">{t.label}</span>
             </motion.button>
           ))}
         </nav>
 
-        {/* Running indicator */}
+        {/* Running badge */}
         <AnimatePresence>
-          {currentRun?.status === 'RUNNING' && (
+          {run?.status === 'RUNNING' && (
             <motion.div
-              style={{ margin: '0 12px 10px', padding: '12px 14px', borderRadius: '12px', background: 'var(--lime-dim)', border: '1px solid var(--border-lime)', display: 'flex', alignItems: 'center', gap: '12px' }}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
+              style={{ margin: '0 12px 10px', padding: '11px 13px', borderRadius: 12, background: 'var(--lime-dim)', border: '1px solid var(--b-lime)', display: 'flex', alignItems: 'center', gap: 10 }}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
             >
               <div className="running-dot" />
-              <span className="sidebar-label mono" style={{ fontSize: '11px', color: 'var(--lime)', whiteSpace: 'nowrap' }}>Scan running...</span>
+              <span className="sidebar-lbl mono text-[11px]" style={{ color: 'var(--lime)' }}>Scanning…</span>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Theme toggle and Logout */}
-        <div style={{ padding: '12px', borderTop: '1px solid var(--border-void)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <motion.button
-            onClick={toggleTheme}
-            className="nav-item"
-            style={{ width: '100%' }}
-            whileHover={{ x: 4 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            {isDarkMode ? <Sun size={17} style={{ flexShrink: 0 }} /> : <Moon size={17} style={{ flexShrink: 0 }} />}
-            <span className="sidebar-label" style={{ whiteSpace: 'nowrap' }}>
-              {isDarkMode ? 'Light Mode' : 'Dark Mode'}
-            </span>
+        {/* Footer actions */}
+        <div style={{ padding: 12, borderTop: '1px solid var(--b0)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <motion.button onClick={() => setDark(d => !d)} className="nav-item" whileHover={{ x: 3 }} whileTap={{ scale: 0.97 }}>
+            {dark ? <Sun size={16} style={{ flexShrink: 0 }} /> : <Moon size={16} style={{ flexShrink: 0 }} />}
+            <span className="sidebar-lbl text-sm">{dark ? 'Light Mode' : 'Dark Mode'}</span>
           </motion.button>
-          <motion.button
-            onClick={handleLogout}
-            className="nav-item"
-            style={{ width: '100%' }}
-            whileHover={{ x: 4 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <LogOut size={17} style={{ flexShrink: 0 }} />
-            <span className="sidebar-label" style={{ whiteSpace: 'nowrap' }}>Disconnect</span>
+          <motion.button onClick={logout} className="nav-item" style={{ color: 'var(--red)' }} whileHover={{ x: 3 }} whileTap={{ scale: 0.97 }}>
+            <LogOut size={16} style={{ flexShrink: 0 }} />
+            <span className="sidebar-lbl text-sm">Disconnect</span>
           </motion.button>
         </div>
       </motion.aside>
 
-      {/* ─── MAIN CONTENT ────────────────────────────────────────────────── */}
-      <main style={{
-        flex: 1,
-        marginLeft: 0,
-        padding: '24px 20px',
-        minHeight: '100vh',
-        position: 'relative',
-        zIndex: 10,
-      }} className="main-content">
-        <style>{`
-          @media (min-width: 768px) { .main-content { margin-left: 80px !important; padding: 32px 36px !important; } }
-          @media (min-width: 1200px) { .main-content { margin-left: 280px !important; padding: 36px 48px !important; } }
-        `}</style>
+      {/* ─── MAIN ─────────────────────────────────────── */}
+      <main className="main-wrap relative z-10 flex-1">
 
         {/* Mobile top bar */}
-        <div className="mobile-bar" style={{ display: 'none', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-          <style>{`.mobile-bar { display: flex !important; } @media (min-width: 768px) { .mobile-bar { display: none !important; } }`}</style>
-          <motion.button
-            onClick={() => setSidebarOpen(true)}
-            style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--border-dim)', background: 'var(--raised)', color: 'var(--fg-2)' }}
-            whileTap={{ scale: 0.95 }}
-          >
+        <div className="flex items-center justify-between mb-6 md:hidden">
+          <motion.button onClick={() => setMobileOpen(true)}
+            className="btn btn-ghost p-2.5 rounded-xl" whileTap={{ scale: 0.93 }}>
             <Menu size={18} />
           </motion.button>
-          <span className="display" style={{ fontWeight: 700, fontSize: '17px' }}>Fix<span style={{ color: 'var(--lime)' }}>Stack</span></span>
-          <motion.button onClick={handleLogout} style={{ padding: '10px', background: 'none', border: 'none', color: 'var(--fg-3)' }} whileTap={{ scale: 0.95 }}><LogOut size={18} /></motion.button>
+          <span className="display font-bold text-lg">Fix<span style={{ color: 'var(--lime)' }}>Stack</span></span>
+          <motion.button onClick={logout} className="btn btn-ghost p-2.5 rounded-xl" whileTap={{ scale: 0.93 }}>
+            <LogOut size={18} />
+          </motion.button>
         </div>
 
-        {/* ══════════════════════════════ DASHBOARD ══════════════════════════════ */}
         <AnimatePresence mode="wait">
-          {currentTab === 'dashboard' && !currentRun && (
-            <motion.div
-              key="dashboard-home"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{ maxWidth: '960px' }}
-            >
+
+          {/* ════════════════ DASHBOARD — HOME ════════════════ */}
+          {tab === 'dashboard' && !run && (
+            <motion.div key="home" style={{ maxWidth: 960 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
 
               {/* Hero */}
-              <motion.div
-                style={{ marginBottom: '40px' }}
-                variants={staggerContainer}
-                initial="hidden"
-                animate="visible"
-              >
-                <motion.div variants={fadeInUp} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                  <span className="chip badge-lime"><Sparkles size={10} /> v1.0 LIVE</span>
-                  <span className="chip">Groq + OSV.dev + NVD</span>
+              <motion.div className="mb-12" variants={stagger} initial="hidden" animate="visible">
+                <motion.div className="flex items-center gap-2 mb-5" variants={fadeUp}>
+                  <span className="tag tag-lime text-[10px]"><Sparkles size={9} />v1.0 LIVE</span>
+                  <span className="tag text-[10px]">OSV.dev + NVD + Groq</span>
                 </motion.div>
+
                 <motion.h1
-                  className="display"
-                  style={{ fontSize: 'clamp(32px, 5vw, 52px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.03em', margin: 0 }}
-                  variants={fadeInUp}
+                  className="display font-extrabold leading-none tracking-tighter mb-5"
+                  style={{ fontSize: 'clamp(36px,5.5vw,58px)' }}
+                  variants={fadeUp}
                 >
-                  Autonomous Dependency<br />
-                  <span className="gradient-text">Security Agent</span>
+                  Autonomous<br />
+                  <span className="text-grad">Security Agent</span>
                 </motion.h1>
-                <motion.p
-                  style={{ color: 'var(--fg-2)', marginTop: '16px', fontSize: '16px', maxWidth: '560px', lineHeight: 1.7 }}
-                  variants={fadeInUp}
-                >
-                  Scans repos, analyzes exploitability with AI context, and ships remediation PRs - automatically.
+
+                <motion.p className="text-base leading-relaxed mb-8" style={{ color: 'var(--t1)', maxWidth: 520 }} variants={fadeUp}>
+                  Scans repos, reasons about exploitability with AI, and ships remediation PRs — without you touching a thing.
                 </motion.p>
+
+                <motion.button
+                  onClick={() => scan(true)}
+                  disabled={loading}
+                  className="btn btn-primary"
+                  style={{ fontSize: 14, padding: '15px 28px', borderRadius: 14 }}
+                  variants={fadeUp}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  {loading
+                    ? <><Loader2 size={16} className="anim-spin" />Starting…</>
+                    : <><Zap size={17} />Run Demo — lodash + axios CVEs</>
+                  }
+                </motion.button>
               </motion.div>
 
-              {/* Scan cards */}
+              {/* Scan input cards */}
               <motion.div
-                style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '28px' }}
-                variants={staggerContainer}
-                initial="hidden"
-                animate="visible"
+                className="grid gap-5 mb-6"
+                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))' }}
+                variants={stagger} initial="hidden" animate="visible"
               >
-
-                {/* Repo scan */}
-                <motion.div className="glass-card" style={{ borderRadius: '20px', padding: '28px' }} variants={scaleIn} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 300 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(37,99,235,0.15)', border: '1px solid rgba(37,99,235,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Github size={16} style={{ color: '#3b82f6' }} />
+                {/* Repo */}
+                <motion.div className="card p-7" variants={scaleIn} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 280 }}>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(37,99,235,0.14)', border: '1px solid rgba(37,99,235,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Github size={15} style={{ color: '#3b82f6' }} />
                     </div>
                     <div>
-                      <p style={{ fontWeight: 600, fontSize: '15px', margin: 0 }}>Repository Scan</p>
-                      <p style={{ fontSize: '12px', color: 'var(--fg-3)', margin: 0 }}>Select from your GitHub repos</p>
+                      <p className="font-semibold text-sm">Repository Scan</p>
+                      <p className="text-xs" style={{ color: 'var(--t2)' }}>Select from your repos</p>
                     </div>
                   </div>
 
-                  {githubRepos.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {repos.length > 0 ? (
+                    <div className="flex flex-col gap-3">
                       <select
                         value={selectedRepo}
-                        onChange={e => { const url = e.target.value; setSelectedRepo(url); if (url) { setRepoUrl(url); setError(null); startScan(false, url); } }}
-                        disabled={isLoading}
-                        className="input-void"
-                        style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px', cursor: 'pointer' }}
+                        onChange={e => { const u = e.target.value; setSelectedRepo(u); if (u) { setRepoUrl(u); setErr(null); scan(false, u); } }}
+                        disabled={loading}
+                        className="input text-sm"
+                        style={{ cursor: 'pointer' }}
                       >
-                        <option value="">Select a repository...</option>
-                        {githubRepos.map(r => <option key={r.id} value={r.html_url}>{r.full_name}{r.private ? ' [private]' : ''}</option>)}
+                        <option value="">Choose a repository…</option>
+                        {repos.map(r => <option key={r.id} value={r.html_url}>{r.full_name}{r.private ? ' 🔒' : ''}</option>)}
                       </select>
-                      <motion.button
-                        onClick={() => loginWithGithubToken(githubToken)}
-                        disabled={isRepoLoading}
-                        className="btn-ghost"
-                        style={{ padding: '11px', borderRadius: '10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
-                        whileHover={{ scale: 1.01 }}
-                        whileTap={{ scale: 0.99 }}
-                      >
-                        {isRepoLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Refresh repos
+                      <motion.button onClick={() => authWithPat(pat)} disabled={repoLoading}
+                        className="btn btn-ghost text-xs py-2.5 rounded-xl" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                        <RefreshCw size={13} className={repoLoading ? 'anim-spin' : ''} />Refresh
                       </motion.button>
                     </div>
                   ) : (
-                    <div style={{ padding: '20px', borderRadius: '10px', background: 'var(--surface)', color: 'var(--fg-3)', fontSize: '13px', textAlign: 'center' }}>
-                      No repositories found.
-                    </div>
+                    <p className="text-xs text-center py-5 rounded-xl" style={{ color: 'var(--t2)', background: 'var(--b0)' }}>No repos found</p>
                   )}
                 </motion.div>
 
-                {/* Org scan */}
-                <motion.div className="glass-card" style={{ borderRadius: '20px', padding: '28px' }} variants={scaleIn} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 300 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Building size={16} style={{ color: 'var(--violet)' }} />
+                {/* Org */}
+                <motion.div className="card p-7" variants={scaleIn} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 280 }}>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(157,120,247,0.14)', border: '1px solid rgba(157,120,247,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Building size={15} style={{ color: 'var(--violet)' }} />
                     </div>
                     <div>
-                      <p style={{ fontWeight: 600, fontSize: '15px', margin: 0 }}>Organization Scan</p>
-                      <p style={{ fontSize: '12px', color: 'var(--fg-3)', margin: 0 }}>Queue all public repos</p>
+                      <p className="font-semibold text-sm">Organization Scan</p>
+                      <p className="text-xs" style={{ color: 'var(--t2)' }}>Queue all public repos</p>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <input
-                      type="text"
-                      placeholder="e.g. facebook"
-                      value={orgName}
-                      onChange={e => { setOrgName(e.target.value); setError(null); }}
-                      disabled={isLoading}
-                      className="input-void"
-                      style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }}
-                    />
-                    <motion.button
-                      onClick={startOrgScan}
-                      disabled={isLoading || !orgName}
-                      className="btn-ghost"
-                      style={{ padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: isLoading || !orgName ? 'not-allowed' : 'pointer', opacity: isLoading || !orgName ? 0.5 : 1 }}
-                      whileHover={!isLoading && orgName ? { scale: 1.01 } : {}}
-                      whileTap={!isLoading && orgName ? { scale: 0.99 } : {}}
-                    >
-                      {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} Queue Org Scan
+                  <div className="flex flex-col gap-3">
+                    <input type="text" placeholder="e.g. vercel" value={orgName}
+                      onChange={e => { setOrgName(e.target.value); setErr(null); }}
+                      disabled={loading} className="input text-sm" />
+                    <motion.button onClick={orgScan} disabled={loading || !orgName}
+                      className="btn btn-ghost text-sm py-3 rounded-xl font-semibold" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                      <Play size={14} />Queue Org Scan
                     </motion.button>
                   </div>
                 </motion.div>
@@ -1180,130 +770,85 @@ export default function App() {
 
               {/* Error */}
               <AnimatePresence>
-                {error && (
-                  <motion.div
-                    style={{ padding: '14px 18px', borderRadius: '12px', background: 'var(--red-dim)', border: '1px solid rgba(255,68,102,0.3)', color: 'var(--red)', fontSize: '13px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                  >
-                    <AlertCircle size={15} /> {error}
+                {err && (
+                  <motion.div className="flex items-center gap-3 text-sm p-4 rounded-2xl mb-6"
+                    style={{ background: 'var(--red-bg)', border: '1px solid rgba(255,58,92,0.25)', color: 'var(--red)' }}
+                    initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                    <AlertCircle size={15} />{err}
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Demo + How it works */}
-              <motion.div
-                style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
-                variants={staggerContainer}
-                initial="hidden"
-                animate="visible"
-              >
-                <motion.button
-                  onClick={() => startScan(true)}
-                  disabled={isLoading}
-                  className="btn-lime"
-                  style={{ padding: '16px 28px', borderRadius: '14px', fontSize: '15px', display: 'inline-flex', alignItems: 'center', gap: '12px', cursor: isLoading ? 'not-allowed' : 'pointer', width: 'fit-content', opacity: isLoading ? 0.7 : 1 }}
-                  variants={fadeInUp}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Zap size={18} /> Run Live Demo - lodash + axios CVEs
-                </motion.button>
-
-                <motion.div className="glass-card" style={{ borderRadius: '20px', padding: '28px' }} variants={fadeInUp}>
-                  <p className="section-heading">How it works</p>
-                  <motion.div
-                    style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}
-                    variants={staggerContainer}
-                  >
-                    {[
-                      { icon: Box,      label: 'Fetch Deps',  desc: 'Parses manifests',     color: '#2563EB' },
-                      { icon: Search,   label: 'Scan CVEs',   desc: 'OSV.dev + NVD',        color: '#7C3AED' },
-                      { icon: Brain,    label: 'AI Context',  desc: 'Call graph analysis',  color: '#0891B2' },
-                      { icon: Github,   label: 'Open PR',     desc: 'Automated patch',       color: '#059669' },
-                    ].map((s, i) => (
-                      <motion.div
-                        key={s.label}
-                        variants={scaleIn}
-                        style={{ padding: '20px', borderRadius: '14px', background: 'var(--surface)', border: '1px solid var(--border-void)' }}
-                        whileHover={{ y: -4, borderColor: s.color + '44' }}
-                        transition={{ type: 'spring', stiffness: 300 }}
-                      >
-                        <div style={{ width: '32px', height: '32px', borderRadius: '9px', background: s.color + '22', border: `1px solid ${s.color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
-                          <s.icon size={15} style={{ color: s.color }} />
-                        </div>
-                        <p style={{ fontWeight: 600, fontSize: '14px', margin: '0 0 4px' }}>{s.label}</p>
-                        <p style={{ fontSize: '12px', color: 'var(--fg-3)', margin: 0 }}>{s.desc}</p>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                </motion.div>
+              {/* How it works */}
+              <motion.div className="card p-7" variants={fadeUp} initial="hidden" animate="visible">
+                <p className="section-label">How it works</p>
+                <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))' }}>
+                  {[
+                    { icon: Github,    label: 'Fetch Deps',   desc: 'Parses manifests',    color: '#2563EB' },
+                    { icon: Search,    label: 'CVE Scan',     desc: 'OSV.dev + NVD dual',  color: '#7C3AED' },
+                    { icon: Brain,     label: 'AI Context',   desc: 'Call graph analysis', color: '#0891B2' },
+                    { icon: ArrowRight,label: 'Auto PR',      desc: 'Merged & annotated',  color: '#059669' },
+                  ].map((s, i) => (
+                    <motion.div key={s.label}
+                      className="p-5 rounded-2xl" style={{ background: 'var(--b0)', border: '1px solid var(--b0)' }}
+                      whileHover={{ y: -4, borderColor: s.color + '44' }}
+                      transition={{ type: 'spring', stiffness: 280 }}
+                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition2={{ delay: i * 0.07 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 9, background: s.color + '1a', border: `1px solid ${s.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                        <s.icon size={14} style={{ color: s.color }} />
+                      </div>
+                      <p className="font-semibold text-sm mb-1">{s.label}</p>
+                      <p className="text-xs" style={{ color: 'var(--t2)' }}>{s.desc}</p>
+                    </motion.div>
+                  ))}
+                </div>
               </motion.div>
             </motion.div>
           )}
 
-          {/* ══════════════════════════════ SCAN RUNNING / DONE ══════════════════════════════ */}
-          {currentTab === 'dashboard' && currentRun && (
-            <motion.div
-              key="dashboard-run"
-              style={{ maxWidth: '960px' }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
+          {/* ════════════════ DASHBOARD — RUN ════════════════ */}
+          {tab === 'dashboard' && run && (
+            <motion.div key="run" style={{ maxWidth: 960 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
 
               {/* Sticky run header */}
-              <motion.div
-                className="glass-card-raised"
-                style={{ position: 'sticky', top: 0, zIndex: 20, borderRadius: '18px', padding: '20px 24px', marginBottom: '28px' }}
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '18px' }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
-                    <div>
-                      <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', margin: '0 0 4px' }}>Repository</p>
-                      <p style={{ fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
-                        <Github size={14} style={{ color: 'var(--fg-3)' }} /> {currentRun.input.repoName}
-                      </p>
-                    </div>
-                    <div>
-                      <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', margin: '0 0 4px' }}>Run ID</p>
-                      <p className="mono" style={{ margin: 0, fontSize: '12px', color: 'var(--fg-2)' }}>{currentRun.id.slice(0, 10)}</p>
-                    </div>
-                    <div>
-                      <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', margin: '0 0 4px' }}>Duration</p>
-                      <p className="mono" style={{ margin: 0, fontSize: '13px', color: 'var(--lime)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Clock size={12} /> {duration}s
-                      </p>
-                    </div>
+              <motion.div className="card-raised p-6 mb-7" style={{ position: 'sticky', top: 0, zIndex: 20 }}
+                initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}>
+                <div className="flex items-center justify-between flex-wrap gap-4 mb-5">
+                  <div className="flex flex-wrap gap-6">
+                    {[
+                      { label: 'Repo', val: run.input.repoName, icon: <Github size={13} style={{ color: 'var(--t2)' }} /> },
+                      { label: 'Run ID', val: run.id.slice(0, 10) + '…', mono: true },
+                      { label: 'Duration', val: `${dur}s`, mono: true, accent: true },
+                    ].map(f => (
+                      <div key={f.label}>
+                        <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--t2)', marginBottom: 4 }}>{f.label}</p>
+                        <p className={`text-sm font-semibold flex items-center gap-2 ${f.mono ? 'mono' : ''}`} style={{ color: f.accent ? 'var(--lime)' : 'var(--t0)' }}>
+                          {f.icon}{f.val}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                   <motion.span
-                    className={`chip ${currentRun.status === 'COMPLETED' ? 'badge-lime' : currentRun.status === 'FAILED' ? 'badge-critical' : 'badge-info'}`}
-                    style={{ fontSize: '11px', padding: '6px 14px', borderRadius: '99px' }}
-                    animate={currentRun.status === 'RUNNING' ? { scale: [1, 1.02, 1] } : {}}
+                    className={`tag text-[11px] px-4 py-1.5 ${run.status === 'COMPLETED' ? 'tag-lime' : run.status === 'FAILED' ? 'tag-red' : 'tag-teal'}`}
+                    animate={run.status === 'RUNNING' ? { scale: [1, 1.03, 1] } : {}}
                     transition={{ duration: 1.5, repeat: Infinity }}
                   >
-                    {currentRun.status === 'RUNNING' && <span className="running-dot" style={{ width: '6px', height: '6px', marginRight: '8px' }} />}
-                    {currentRun.status}
+                    {run.status === 'RUNNING' && <span className="running-dot mr-2" style={{ width: 6, height: 6 }} />}
+                    {run.status}
                   </motion.span>
                 </div>
 
-                {/* Steps */}
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {STEPS.map((step, i) => {
-                    const cur = getScanStep();
+                {/* Step pills */}
+                <div className="flex gap-2">
+                  {STEPS.map((s, i) => {
+                    const cur = getStep();
+                    const done = i < cur || run.status === 'COMPLETED';
+                    const active = i === cur && run.status !== 'COMPLETED' && run.status !== 'FAILED';
                     return (
-                      <motion.div
-                        key={step}
-                        className={`scan-step ${i < cur || currentRun.status === 'COMPLETED' ? 'done' : i === cur && currentRun.status !== 'COMPLETED' ? 'active' : ''}`}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.1 }}
-                      >
-                        {(i < cur || currentRun.status === 'COMPLETED') ? <Check size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> : null}
-                        {step}
+                      <motion.div key={s} className={`step-pill ${done ? 'done' : active ? 'active' : ''}`}
+                        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
+                        {done && <Check size={10} className="inline mr-1" />}{s}
                       </motion.div>
                     );
                   })}
@@ -1311,170 +856,124 @@ export default function App() {
               </motion.div>
 
               {/* Timeline */}
-              <motion.div
-                className="glass-card"
-                style={{ borderRadius: '20px', padding: '28px', marginBottom: '28px' }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                <p style={{ display: 'flex', alignItems: 'center', gap: '10px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '16px', margin: '0 0 28px', color: 'var(--fg)' }}>
-                  <Activity size={18} style={{ color: 'var(--lime)' }} /> Live Agent Timeline
+              <motion.div className="card p-7 mb-7"
+                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+                <p className="flex items-center gap-3 font-bold text-base mb-7 display" style={{ color: 'var(--t0)' }}>
+                  <Activity size={17} style={{ color: 'var(--lime)' }} />Live Agent Timeline
+                  {run.status === 'RUNNING' && <span className="running-dot ml-1" />}
                 </p>
 
-                <div style={{ position: 'relative', paddingLeft: '28px' }}>
-                  {/* Timeline line */}
+                <div className="relative pl-7">
+                  {/* Vertical line */}
                   {events.length > 0 && (
                     <motion.div
-                      style={{ position: 'absolute', left: '20px', top: '4px', bottom: '20px', width: '2px', background: 'linear-gradient(to bottom, var(--lime), var(--lime-glow), transparent)', borderRadius: '2px' }}
-                      initial={{ scaleY: 0 }}
-                      animate={{ scaleY: 1 }}
-                      transition={{ duration: 0.5 }}
+                      style={{ position: 'absolute', left: 19, top: 4, bottom: 20, width: 1.5, background: 'linear-gradient(to bottom, var(--lime), var(--lime-glow), transparent)', borderRadius: 2 }}
+                      initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ duration: 0.6 }}
                     />
                   )}
 
-                  {events.length === 0 && currentRun.status === 'PENDING' ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      {[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: '80px' }} />)}
-                    </div>
-                  ) : (
-                    events.map((ev, idx) => (
-                      <TimelineEventCard key={ev.id} event={ev} run={currentRun} index={idx} />
-                    ))
-                  )}
+                  {events.length === 0
+                    ? [1,2,3].map(i => <div key={i} className="skeleton mb-4" style={{ height: 72 }} />)
+                    : events.map((ev, idx) => <EventRow key={ev.id} ev={ev} run={run} i={idx} />)
+                  }
 
-                  {currentRun.status === 'RUNNING' && (
-                    <motion.div
-                      style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '12px' }}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                    >
-                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', border: '1px solid var(--border-dim)', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Loader2 size={18} className="animate-spin" style={{ color: 'var(--lime)' }} />
+                  {run.status === 'RUNNING' && (
+                    <motion.div className="flex items-center gap-4 mt-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid var(--b1)', background: 'var(--ink-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Loader2 size={17} className="anim-spin" style={{ color: 'var(--lime)' }} />
                       </div>
-                      <p style={{ color: 'var(--fg-3)', fontStyle: 'italic', fontSize: '13px' }}>Agents processing...</p>
+                      <p className="text-sm italic" style={{ color: 'var(--t2)' }}>Agents processing…</p>
                     </motion.div>
                   )}
                 </div>
               </motion.div>
 
-              {/* ── Results ── */}
-              {currentRun.status === 'COMPLETED' && (
-                <motion.div
-                  style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}
-                  variants={staggerContainer}
-                  initial="hidden"
-                  animate="visible"
-                >
+              {/* ── RESULTS ── */}
+              {run.status === 'COMPLETED' && (
+                <motion.div className="flex flex-col gap-6"
+                  variants={stagger} initial="hidden" animate="visible">
 
-                  {/* Severity Gauge + Stats */}
-                  <motion.div
-                    className="glass-card"
-                    style={{ borderRadius: '20px', padding: '32px' }}
-                    variants={fadeInUp}
-                  >
-                    <p className="section-heading" style={{ marginBottom: '24px' }}>Vulnerability Overview</p>
-                    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8">
-                      <SeverityGauge
-                        critical={currentRun.vulnerabilities.filter((v: any) => v.severity.toUpperCase() === 'CRITICAL').length}
-                        high={currentRun.vulnerabilities.filter((v: any) => v.severity.toUpperCase() === 'HIGH').length}
-                        medium={currentRun.vulnerabilities.filter((v: any) => v.severity.toUpperCase() === 'MEDIUM').length}
-                        low={currentRun.vulnerabilities.filter((v: any) => v.severity.toUpperCase() === 'LOW').length}
+                  {/* Stats + donut */}
+                  <motion.div className="card p-8" variants={fadeUp}>
+                    <p className="section-label mb-6">Vulnerability Overview</p>
+                    <div className="flex flex-wrap items-start gap-10 justify-between">
+                      <Donut
+                        crit={run.vulnerabilities.filter((v: any) => v.severity.toUpperCase() === 'CRITICAL').length}
+                        high={run.vulnerabilities.filter((v: any) => v.severity.toUpperCase() === 'HIGH').length}
+                        med={run.vulnerabilities.filter((v: any) => v.severity.toUpperCase() === 'MEDIUM').length}
+                        low={run.vulnerabilities.filter((v: any) => !['CRITICAL','HIGH','MEDIUM'].includes(v.severity.toUpperCase())).length}
                       />
-                      
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px' }}>
-                        <motion.div className="stat-card" variants={scaleIn}>
-                          <div className="stat-value" style={{ color: 'var(--fg)' }}><AnimatedNumber value={currentRun.vulnerabilities.length} /></div>
-                          <div className="stat-label">Vulns Found</div>
-                        </motion.div>
-                        <motion.div className="stat-card" style={{ borderColor: 'rgba(0, 255, 140, 0.15)' }} variants={scaleIn}>
-                          <div className="stat-value gradient-text"><AnimatedNumber value={currentRun.remediations.filter((r: any) => r.status === 'FIXED').length} /></div>
-                          <div className="stat-label" style={{ color: 'var(--lime)' }}>Patched</div>
-                        </motion.div>
-                        <motion.div className="stat-card" style={{ borderColor: 'rgba(255,68,102,0.1)' }} variants={scaleIn}>
-                          <div className="stat-value gradient-text-hot"><AnimatedNumber value={currentRun.remediations.filter((r: any) => r.status === 'FAILED').length} /></div>
-                          <div className="stat-label" style={{ color: 'var(--red)' }}>Failed</div>
-                        </motion.div>
-                        <motion.div className="stat-card" variants={scaleIn}>
-                          <div className="stat-value gradient-text-cool mono">{duration}s</div>
-                          <div className="stat-label">Duration</div>
-                        </motion.div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { val: run.vulnerabilities.length, lbl: 'Found', color: 'var(--t0)', cls: '' },
+                          { val: run.remediations.filter((r: any) => r.status === 'FIXED').length,  lbl: 'Patched',  color: 'var(--lime)',   cls: 'text-grad' },
+                          { val: run.remediations.filter((r: any) => r.status === 'FAILED').length, lbl: 'Failed',   color: 'var(--red)',    cls: 'text-grad-warm' },
+                          { val: dur, lbl: 'Seconds', color: 'var(--blue)', cls: 'text-grad-cool' },
+                        ].map(s => (
+                          <motion.div key={s.lbl} className="stat-card" variants={scaleIn}>
+                            <div className={`stat-val ${s.cls}`} style={!s.cls ? { color: s.color } : {}}>
+                              <Num val={s.val} />
+                            </div>
+                            <div className="stat-lbl">{s.lbl}</div>
+                          </motion.div>
+                        ))}
                       </div>
                     </div>
                   </motion.div>
 
-                  {/* Vulnerabilities table */}
-                  {currentRun.vulnerabilities.length > 0 && (
-                    <motion.div className="glass-card" style={{ borderRadius: '20px', overflow: 'hidden' }} variants={fadeInUp}>
-                      <div style={{ padding: '24px 24px 18px', borderBottom: '1px solid var(--border-void)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Shield size={18} style={{ color: 'var(--red)' }} />
-                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px' }}>Vulnerabilities Discovered</span>
-                        <span className="chip" style={{ marginLeft: 'auto' }}>{currentRun.vulnerabilities.length}</span>
+                  {/* Vulns table */}
+                  {run.vulnerabilities.length > 0 && (
+                    <motion.div className="card overflow-hidden" variants={fadeUp}>
+                      <div className="flex items-center gap-3 px-6 py-5 border-b" style={{ borderColor: 'var(--b1)' }}>
+                        <Shield size={16} style={{ color: 'var(--red)' }} />
+                        <span className="display font-bold text-sm">Vulnerabilities Discovered</span>
+                        <span className="tag text-[10px] ml-auto">{run.vulnerabilities.length}</span>
                       </div>
-                      <div style={{ overflowX: 'auto' }}>
+                      <div className="overflow-x-auto">
                         <table className="data-table">
                           <thead>
-                            <tr>
-                              <th>Package</th>
-                              <th>Severity</th>
-                              <th>Context</th>
-                              <th>Description</th>
-                            </tr>
+                            <tr><th>Package</th><th>Severity</th><th>AI Context</th><th>Description</th></tr>
                           </thead>
                           <tbody>
-                            {currentRun.vulnerabilities.map((v: any, i: number) => (
+                            {run.vulnerabilities.map((v: any, i: number) => (
                               <React.Fragment key={v.id}>
-                                <motion.tr
-                                  style={{ cursor: 'pointer' }}
-                                  onClick={() => toggleRow(v.id)}
-                                  initial={{ opacity: 0, x: -10 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  transition={{ delay: i * 0.05 }}
-                                  whileHover={{ backgroundColor: 'rgba(0, 255, 140, 0.03)' }}
-                                >
+                                <motion.tr style={{ cursor: 'pointer' }} onClick={() => setExpanded(p => ({ ...p, [v.id]: !p[v.id] }))}
+                                  initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}>
                                   <td>
-                                    <p style={{ fontWeight: 600, margin: '0 0 2px', fontSize: '13px' }}>{v.pkgName}</p>
-                                    <p className="mono" style={{ fontSize: '11px', color: 'var(--fg-3)', margin: 0 }}>{v.pkgVersion}</p>
+                                    <p className="font-semibold text-sm mb-0.5">{v.pkgName}</p>
+                                    <p className="mono text-[11px]" style={{ color: 'var(--t2)' }}>{v.pkgVersion}</p>
                                   </td>
                                   <td>
-                                    <span className={`chip ${sevBadgeClass(v.severity)}`} style={{ gap: '6px' }}>
-                                      {sevIcon(v.severity)} {v.severity}
+                                    <span className={`tag text-[10px] gap-1.5 ${sevClass(v.severity)}`}>
+                                      <SevIcon s={v.severity} />{v.severity}
                                     </span>
                                   </td>
                                   <td>
-                                    {(v as any).contextNote ? (
-                                      <span className="chip badge-info" style={{ gap: '6px' }}>
-                                        <Brain size={10} /> AI
-                                      </span>
-                                    ) : <span style={{ color: 'var(--fg-4)' }}>-</span>}
+                                    {v.contextNote
+                                      ? <span className="tag tag-violet text-[10px] gap-1.5"><Brain size={10} />AI</span>
+                                      : <span style={{ color: 'var(--t3)' }}>—</span>}
                                   </td>
-                                  <td style={{ maxWidth: '300px' }}>
-                                    <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0, fontSize: '12px', color: 'var(--fg-2)' }}>{v.description}</p>
-                                    <p style={{ fontSize: '10px', color: 'var(--lime)', margin: '3px 0 0', fontFamily: 'var(--font-mono)' }}>Click to expand</p>
+                                  <td style={{ maxWidth: 280 }}>
+                                    <p className="text-xs truncate" style={{ color: 'var(--t1)' }}>{v.description}</p>
+                                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--lime)' }}>Click to expand</p>
                                   </td>
                                 </motion.tr>
                                 <AnimatePresence>
-                                  {expandedRows[v.id] && (
-                                    <motion.tr
-                                      style={{ background: 'var(--surface)' }}
-                                      initial={{ opacity: 0, height: 0 }}
-                                      animate={{ opacity: 1, height: 'auto' }}
-                                      exit={{ opacity: 0, height: 0 }}
-                                    >
+                                  {expanded[v.id] && (
+                                    <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                      style={{ background: 'var(--ink-2)' }}>
                                       <td colSpan={4} style={{ padding: '20px 24px' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                                          <div style={{ padding: '16px', borderRadius: '12px', background: 'var(--raised)', border: '1px solid var(--border-void)', fontSize: '13px', lineHeight: 1.7, color: 'var(--fg-2)' }}>
-                                            {v.description}
-                                          </div>
-                                          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                                            <div style={{ padding: '12px 16px', borderRadius: '10px', background: 'var(--raised)', border: '1px solid var(--border-void)' }}>
-                                              <p style={{ fontSize: '10px', color: 'var(--fg-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 6px' }}>CVE</p>
-                                              <p className="mono" style={{ fontSize: '12px', margin: 0, color: 'var(--blue)' }}>{v.cveId}</p>
+                                        <div className="flex flex-col gap-3">
+                                          <p className="text-sm leading-relaxed" style={{ color: 'var(--t1)' }}>{v.description}</p>
+                                          <div className="flex flex-wrap gap-3">
+                                            <div className="px-4 py-3 rounded-xl text-xs" style={{ background: 'var(--b0)', border: '1px solid var(--b1)' }}>
+                                              <p className="section-label text-[9px] mb-1">CVE ID</p>
+                                              <p className="mono" style={{ color: 'var(--blue)' }}>{v.cveId}</p>
                                             </div>
-                                            {(v as any).contextNote && (
-                                              <div style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', background: 'rgba(0, 255, 140, 0.04)', border: '1px solid var(--border-lime)' }}>
-                                                <p style={{ fontSize: '10px', color: 'var(--lime)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: '6px' }}><Brain size={10} /> AI Analysis</p>
-                                                <p style={{ fontSize: '12px', color: 'var(--fg-2)', margin: 0 }}>{(v as any).contextNote}</p>
+                                            {v.contextNote && (
+                                              <div className="flex-1 px-4 py-3 rounded-xl text-xs" style={{ background: 'var(--lime-dim)', border: '1px solid var(--b-lime)' }}>
+                                                <p className="section-label text-[9px] mb-1" style={{ color: 'var(--lime)' }}>AI Analysis</p>
+                                                <p style={{ color: 'var(--t1)' }}>{v.contextNote}</p>
                                               </div>
                                             )}
                                           </div>
@@ -1491,60 +990,42 @@ export default function App() {
                     </motion.div>
                   )}
 
-                  {/* Remediations table */}
-                  {currentRun.remediations.length > 0 && (
-                    <motion.div className="glass-card" style={{ borderRadius: '20px', overflow: 'hidden' }} variants={fadeInUp}>
-                      <div style={{ padding: '24px 24px 18px', borderBottom: '1px solid var(--border-void)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <RefreshCw size={18} style={{ color: 'var(--lime)' }} />
-                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px' }}>Remediations Applied</span>
+                  {/* Remediations */}
+                  {run.remediations.length > 0 && (
+                    <motion.div className="card overflow-hidden" variants={fadeUp}>
+                      <div className="flex items-center gap-3 px-6 py-5 border-b" style={{ borderColor: 'var(--b1)' }}>
+                        <RefreshCw size={16} style={{ color: 'var(--lime)' }} />
+                        <span className="display font-bold text-sm">Remediations Applied</span>
                       </div>
-                      <div style={{ overflowX: 'auto' }}>
+                      <div className="overflow-x-auto">
                         <table className="data-table">
-                          <thead>
-                            <tr>
-                              <th>Package</th>
-                              <th>Update</th>
-                              <th>Attempts</th>
-                              <th style={{ textAlign: 'right' }}>Result</th>
-                            </tr>
-                          </thead>
+                          <thead><tr><th>Package</th><th>Upgrade</th><th>Attempts</th><th className="text-right">Result</th></tr></thead>
                           <tbody>
-                            {currentRun.remediations.map((r: any, i: number) => (
-                              <motion.tr
-                                key={i}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: i * 0.05 }}
-                              >
-                                <td style={{ fontWeight: 600, fontSize: '13px' }}>{r.pkgName}</td>
+                            {run.remediations.map((r: any, i: number) => (
+                              <motion.tr key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
+                                <td className="font-semibold text-sm">{r.pkgName}</td>
                                 <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <span className="mono" style={{ fontSize: '12px', color: 'var(--red)', textDecoration: 'line-through' }}>{r.oldVersion}</span>
-                                    <ArrowRight size={12} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
-                                    <span className="mono" style={{ fontSize: '12px', color: r.status === 'FIXED' ? 'var(--lime)' : 'var(--fg-2)', fontWeight: r.status === 'FIXED' ? 600 : 400 }}>{r.newVersion}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="mono text-xs line-through" style={{ color: 'var(--red)' }}>{r.oldVersion}</span>
+                                    <ArrowRight size={11} style={{ color: 'var(--t3)', flexShrink: 0 }} />
+                                    <span className="mono text-xs font-bold" style={{ color: r.status === 'FIXED' ? 'var(--lime)' : 'var(--t1)' }}>{r.newVersion}</span>
                                   </div>
                                 </td>
                                 <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div style={{ display: 'flex', gap: '4px' }}>
-                                      {Array.from({ length: Math.max(1, r.attempts || 1) }).map((_, idx) => (
-                                        <motion.div
-                                          key={idx}
-                                          style={{ width: '10px', height: '10px', borderRadius: '50%', background: r.status === 'FIXED' && idx === (r.attempts || 1) - 1 ? 'var(--lime)' : 'var(--red)' }}
-                                          initial={{ scale: 0 }}
-                                          animate={{ scale: 1 }}
-                                          transition={{ delay: idx * 0.1 }}
-                                          {...(r.status === 'FIXED' && idx === (r.attempts || 1) - 1 ? { style: { width: '10px', height: '10px', borderRadius: '50%', background: 'var(--lime)', boxShadow: '0 0 10px var(--lime-glow)' } } : {})}
-                                        />
-                                      ))}
-                                    </div>
+                                  <div className="flex items-center gap-1.5">
+                                    {Array.from({ length: Math.max(1, r.attempts || 1) }).map((_, idx) => (
+                                      <motion.div key={idx}
+                                        style={{ width: 9, height: 9, borderRadius: '50%', background: r.status === 'FIXED' && idx === (r.attempts || 1) - 1 ? 'var(--lime)' : 'var(--red)', boxShadow: r.status === 'FIXED' && idx === (r.attempts || 1) - 1 ? '0 0 8px var(--lime-glow)' : 'none' }}
+                                        initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: idx * 0.08 }}
+                                      />
+                                    ))}
                                     {(r.attempts || 0) > 1 && r.status === 'FIXED' && (
-                                      <span className="chip badge-medium" style={{ fontSize: '10px' }}>Self-Corrected</span>
+                                      <span className="tag tag-amber text-[10px] ml-1">Self-Corrected</span>
                                     )}
                                   </div>
                                 </td>
-                                <td style={{ textAlign: 'right' }}>
-                                  <span className={`chip ${r.status === 'FIXED' ? 'badge-lime' : 'badge-critical'}`} style={{ fontSize: '11px' }}>
+                                <td className="text-right">
+                                  <span className={`tag text-[10px] ${r.status === 'FIXED' ? 'tag-lime' : 'tag-red'}`}>
                                     {r.status === 'FIXED' ? 'PATCHED' : 'FAILED'}
                                   </span>
                                 </td>
@@ -1558,224 +1039,151 @@ export default function App() {
                 </motion.div>
               )}
 
-              {/* Failed state */}
-              {currentRun.status === 'FAILED' && (
-                <motion.div
-                  style={{ textAlign: 'center', padding: '56px 36px', borderRadius: '20px', background: 'linear-gradient(135deg, rgba(255, 68, 102, 0.1), rgba(255, 68, 102, 0.03))', border: '1px solid rgba(255,68,102,0.2)' }}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                >
-                  <motion.div
-                    animate={{ y: [0, -5, 0] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    <AlertTriangle size={48} style={{ color: 'var(--red)', margin: '0 auto 20px' }} />
-                  </motion.div>
-                  <p className="display" style={{ fontSize: '22px', fontWeight: 800, color: 'var(--red)', margin: '0 0 10px' }}>Workflow Failed</p>
-                  <p style={{ color: 'rgba(255,68,102,0.7)', fontSize: '14px' }}>Check the timeline above for error details.</p>
+              {/* Failed */}
+              {run.status === 'FAILED' && (
+                <motion.div className="text-center p-16 rounded-2xl"
+                  style={{ background: 'var(--red-bg)', border: '1px solid rgba(255,58,92,0.2)' }}
+                  initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+                  <AlertTriangle size={44} style={{ color: 'var(--red)', margin: '0 auto 16px' }} />
+                  <p className="display text-xl font-extrabold mb-2" style={{ color: 'var(--red)' }}>Workflow Failed</p>
+                  <p className="text-sm" style={{ color: 'rgba(255,58,92,0.6)' }}>Check the timeline above for details.</p>
                 </motion.div>
               )}
 
-              {/* Reset button */}
-              <motion.div
-                style={{ textAlign: 'center', paddingTop: '32px', paddingBottom: '48px' }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-              >
-                <motion.button
-                  onClick={() => { setCurrentRun(null); setRepoUrl(''); setSelectedRepo(''); }}
-                  className="btn-ghost"
-                  style={{ padding: '13px 28px', borderRadius: '12px', fontSize: '14px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '10px' }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <RefreshCw size={15} /> Start Another Scan
+              {/* Reset */}
+              <div className="text-center pt-10 pb-14">
+                <motion.button onClick={() => { setRun(null); setRepoUrl(''); setSelectedRepo(''); }}
+                  className="btn btn-ghost" style={{ borderRadius: 12 }}
+                  whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                  <RefreshCw size={14} />New Scan
                 </motion.button>
-              </motion.div>
+              </div>
             </motion.div>
           )}
 
-          {/* ══════════════════════════════ HISTORY ══════════════════════════════ */}
-          {currentTab === 'history' && (
-            <motion.div
-              key="history"
-              style={{ maxWidth: '960px' }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <motion.div
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '20px', marginBottom: '28px' }}
-                variants={staggerContainer}
-                initial="hidden"
-                animate="visible"
-              >
-                <motion.div variants={fadeInUp}>
-                  <h2 className="display" style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.02em' }}>Scan History</h2>
-                  <p style={{ color: 'var(--fg-3)', fontSize: '14px', margin: 0 }}>{history.length} total scans</p>
+          {/* ════════════════ HISTORY ════════════════ */}
+          {tab === 'history' && (
+            <motion.div key="history" style={{ maxWidth: 960 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+
+              <motion.div className="flex items-end justify-between flex-wrap gap-4 mb-8"
+                variants={stagger} initial="hidden" animate="visible">
+                <motion.div variants={fadeUp}>
+                  <h2 className="display font-extrabold tracking-tight mb-1" style={{ fontSize: 28, letterSpacing: '-0.025em' }}>Scan History</h2>
+                  <p className="text-sm" style={{ color: 'var(--t2)' }}>{history.length} runs recorded</p>
                 </motion.div>
-                <motion.div variants={fadeInUp} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <div style={{ position: 'relative' }}>
-                    <Search size={14} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)' }} />
-                    <input type="text" placeholder="Search repos..." value={searchFilter} onChange={e => setSearchFilter(e.target.value)} className="input-void" style={{ padding: '11px 14px 11px 38px', borderRadius: '10px', fontSize: '13px', width: '240px' }} />
+                <motion.div className="flex gap-3 flex-wrap" variants={fadeUp}>
+                  <div className="relative">
+                    <Search size={13} className="absolute" style={{ left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--t2)' }} />
+                    <input type="text" placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)}
+                      className="input text-sm" style={{ paddingLeft: 36, width: 220 }} />
                   </div>
-                  <motion.button onClick={clearHistory} className="btn-ghost" style={{ padding: '11px 16px', borderRadius: '10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-                    <Trash2 size={14} /> Clear
+                  <motion.button onClick={() => { if (confirm('Clear all?')) { setHistory([]); toast('Cleared', 'info'); } }}
+                    className="btn btn-ghost text-xs" style={{ borderRadius: 11 }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+                    <Trash2 size={13} />Clear All
                   </motion.button>
                 </motion.div>
               </motion.div>
 
-              <motion.div
-                style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
-                variants={staggerContainer}
-                initial="hidden"
-                animate="visible"
-              >
-                {history.filter(s => (s.repo || '').toLowerCase().includes(searchFilter.toLowerCase())).length === 0 ? (
-                  <motion.div
-                    variants={fadeInUp}
-                    style={{ textAlign: 'center', padding: '72px 36px', borderRadius: '20px', border: '1px dashed var(--border-dim)', background: 'var(--surface)' }}
-                  >
-                    <History size={48} style={{ color: 'var(--fg-4)', margin: '0 auto 20px' }} />
-                    <p style={{ color: 'var(--fg-3)', fontSize: '15px' }}>No scan history yet.</p>
+              <div className="flex flex-col gap-3">
+                {history.filter(s => (s.repo || '').toLowerCase().includes(search.toLowerCase())).length === 0 ? (
+                  <motion.div className="text-center p-20 rounded-2xl" style={{ border: '1px dashed var(--b1)' }}
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <History size={44} style={{ color: 'var(--t3)', margin: '0 auto 16px' }} />
+                    <p style={{ color: 'var(--t2)' }}>No scans yet. Run your first scan.</p>
                   </motion.div>
                 ) : (
-                  history.filter(s => (s.repo || '').toLowerCase().includes(searchFilter.toLowerCase())).map((scan: any, i: number) => (
-                    <motion.div
-                      key={scan.id}
-                      onClick={() => loadRun(scan.runId)}
-                      className="glass-card"
-                      style={{ borderRadius: '14px', padding: '18px 24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}
-                      variants={fadeInUp}
-                      whileHover={{ x: 4, borderColor: 'var(--border-mid)' }}
-                      transition={{ type: 'spring', stiffness: 300 }}
+                  history.filter(s => (s.repo || '').toLowerCase().includes(search.toLowerCase())).map((s: any, i: number) => (
+                    <motion.div key={s.id} className="card flex items-center justify-between gap-5 p-5"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => loadRun(s.runId)}
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                      whileHover={{ x: 4, borderColor: 'var(--b2)' }}
                     >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                          <Github size={14} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
-                          <span style={{ fontWeight: 600, fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scan.repo}</span>
-                          <span className="chip" style={{ fontSize: '10px' }}>{scan.ecosystem || 'NPM'}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <Github size={13} style={{ color: 'var(--t2)', flexShrink: 0 }} />
+                          <span className="font-semibold text-sm truncate">{s.repo}</span>
+                          {s.ecosystem && <span className="tag text-[10px]">{s.ecosystem}</span>}
                         </div>
-                        <div className="mono" style={{ fontSize: '11px', color: 'var(--fg-3)', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-                          <span>{new Date(scan.createdAt).toLocaleString()}</span>
-                          {scan.vulnerabilities?.filter((v: any) => v.severity === 'CRITICAL').length > 0 && (
-                            <span style={{ color: 'var(--red)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Skull size={10} /> {scan.vulnerabilities.filter((v: any) => v.severity === 'CRITICAL').length}
+                        <div className="mono text-[11px] flex gap-3 flex-wrap items-center" style={{ color: 'var(--t2)' }}>
+                          <span>{new Date(s.createdAt).toLocaleString()}</span>
+                          {s.vulnerabilities?.filter((v: any) => v.severity === 'CRITICAL').length > 0 && (
+                            <span style={{ color: 'var(--red)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                              <Skull size={9} />{s.vulnerabilities.filter((v: any) => v.severity === 'CRITICAL').length}
                             </span>
                           )}
-                          {scan.vulnerabilities?.filter((v: any) => v.severity === 'HIGH').length > 0 && (
-                            <span style={{ color: 'var(--orange)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Flame size={10} /> {scan.vulnerabilities.filter((v: any) => v.severity === 'HIGH').length}
-                            </span>
-                          )}
-                          <span style={{ color: 'var(--lime)', fontWeight: 600 }}>{scan.fixedCount || 0} fixed</span>
+                          <span style={{ color: 'var(--lime)', fontWeight: 600 }}>{s.fixedCount || 0} fixed</span>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                        {scan.status === 'COMPLETED' && (
-                          <motion.button
-                            onClick={e => { e.stopPropagation(); deleteScan(scan.runId); }}
-                            className="btn-ghost"
-                            style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                          >
-                            <Trash2 size={12} />
-                          </motion.button>
-                        )}
-                        {scan.prUrl && <span className="chip badge-lime" style={{ fontSize: '10px' }}><CheckCircle2 size={10} /> PR</span>}
-                        <span className={`chip ${scan.status === 'COMPLETED' ? 'badge-lime' : scan.status === 'FAILED' ? 'badge-critical' : 'badge-info'}`} style={{ fontSize: '10px' }}>{scan.status}</span>
-                        <ChevronRight size={16} style={{ color: 'var(--fg-4)' }} />
+                      <div className="flex items-center gap-3 shrink-0">
+                        <motion.button onClick={e => { e.stopPropagation(); fixstackApi.deleteScan(s.runId).then(() => { setHistory(p => p.filter(x => x.runId !== s.runId)); toast('Deleted', 'info'); }); }}
+                          className="btn btn-danger p-2 rounded-xl text-xs" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.93 }}>
+                          <Trash2 size={13} />
+                        </motion.button>
+                        {s.prUrl && <span className="tag tag-lime text-[10px]"><Check size={10} />PR</span>}
+                        <span className={`tag text-[10px] ${s.status === 'COMPLETED' ? 'tag-lime' : s.status === 'FAILED' ? 'tag-red' : 'tag-teal'}`}>{s.status}</span>
+                        <ChevronRight size={16} style={{ color: 'var(--t3)' }} />
                       </div>
                     </motion.div>
                   ))
                 )}
-              </motion.div>
+              </div>
             </motion.div>
           )}
 
-          {/* ══════════════════════════════ SCHEDULES ══════════════════════════════ */}
-          {currentTab === 'schedules' && (
-            <motion.div
-              key="schedules"
-              style={{ maxWidth: '960px' }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <motion.div
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '20px', marginBottom: '28px' }}
-                variants={staggerContainer}
-                initial="hidden"
-                animate="visible"
-              >
-                <motion.div variants={fadeInUp}>
-                  <h2 className="display" style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.02em' }}>Scheduled Scans</h2>
-                  <p style={{ color: 'var(--fg-3)', fontSize: '14px', margin: 0 }}>Automate vulnerability checks with cron</p>
-                </motion.div>
-                <motion.button
-                  onClick={() => setShowScheduleModal(true)}
-                  className="btn-lime"
-                  style={{ padding: '12px 20px', borderRadius: '12px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
-                  variants={fadeInUp}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Calendar size={15} /> Add Schedule
-                </motion.button>
-              </motion.div>
+          {/* ════════════════ SCHEDULES ════════════════ */}
+          {tab === 'schedules' && (
+            <motion.div key="schedules" style={{ maxWidth: 960 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
 
+              <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
+                <div>
+                  <h2 className="display font-extrabold tracking-tight mb-1" style={{ fontSize: 28, letterSpacing: '-0.025em' }}>Scheduled Scans</h2>
+                  <p className="text-sm" style={{ color: 'var(--t2)' }}>Automated cron-based scanning</p>
+                </div>
+                <motion.button onClick={() => setShowSchModal(true)} className="btn btn-primary text-sm"
+                  style={{ borderRadius: 12 }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                  <Calendar size={15} />Add Schedule
+                </motion.button>
+              </div>
+
+              {/* Schedule modal */}
               <AnimatePresence>
-                {showScheduleModal && (
-                  <motion.div
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                  >
-                    <motion.div
-                      className="glass-card-raised"
-                      style={{ width: '100%', maxWidth: '480px', borderRadius: '24px', padding: '32px' }}
-                      initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
-                        <h3 className="display" style={{ fontWeight: 800, fontSize: '20px', margin: 0 }}>New Schedule</h3>
-                        <motion.button onClick={() => setShowScheduleModal(false)} style={{ color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }} whileHover={{ scale: 1.1 }}><XCircle size={22} /></motion.button>
+                {showSchModal && (
+                  <motion.div className="fixed inset-0 flex items-center justify-center p-6 z-50"
+                    style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(14px)' }}
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <motion.div className="card-raised w-full p-9" style={{ maxWidth: 480, borderRadius: 24 }}
+                      initial={{ opacity: 0, scale: 0.9, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}>
+                      <div className="flex items-center justify-between mb-7">
+                        <h3 className="display font-extrabold text-xl">New Schedule</h3>
+                        <motion.button onClick={() => setShowSchModal(false)} style={{ color: 'var(--t2)', background: 'none', border: 'none', cursor: 'pointer' }} whileHover={{ scale: 1.1 }}>
+                          <XCircle size={22} />
+                        </motion.button>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                      <div className="flex flex-col gap-5">
                         <div>
-                          <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px' }}>GitHub Repo URL</label>
-                          <input type="text" value={scheduleRepo} onChange={e => setScheduleRepo(e.target.value)} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }} placeholder="https://github.com/owner/repo" />
+                          <p className="section-label">Repository URL</p>
+                          <input className="input text-sm" value={schRepo} onChange={e => setSchRepo(e.target.value)} placeholder="https://github.com/owner/repo" />
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div><p className="section-label">Time (HH:MM)</p><input type="time" className="input text-sm" value={schTime} onChange={e => setSchTime(e.target.value)} /></div>
                           <div>
-                            <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px' }}>Time (HH:MM)</label>
-                            <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }} />
-                          </div>
-                          <div>
-                            <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px' }}>Weekday</label>
-                            <select value={scheduleWeekday} onChange={e => setScheduleWeekday(e.target.value)} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }}>
+                            <p className="section-label">Weekday</p>
+                            <select className="input text-sm" value={schWday} onChange={e => setSchWday(e.target.value)} style={{ cursor: 'pointer' }}>
                               <option value="*">Any</option><option value="0">Sun</option><option value="1">Mon</option><option value="2">Tue</option><option value="3">Wed</option><option value="4">Thu</option><option value="5">Fri</option><option value="6">Sat</option>
                             </select>
                           </div>
-                          <div>
-                            <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px' }}>Day of Month</label>
-                            <input type="text" value={scheduleDayOfMonth} onChange={e => setScheduleDayOfMonth(e.target.value || '*')} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }} placeholder="* or 1-31" />
-                          </div>
-                          <div>
-                            <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'block', marginBottom: '10px' }}>Month</label>
-                            <input type="text" value={scheduleMonth} onChange={e => setScheduleMonth(e.target.value || '*')} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }} placeholder="* or 1-12" />
-                          </div>
+                          <div><p className="section-label">Day of Month</p><input className="input text-sm" value={schDom} onChange={e => setSchDom(e.target.value || '*')} placeholder="* or 1-31" /></div>
+                          <div><p className="section-label">Month</p><input className="input text-sm" value={schMon} onChange={e => setSchMon(e.target.value || '*')} placeholder="* or 1-12" /></div>
                         </div>
-                        <div className="chip" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', padding: '10px 14px', borderRadius: '10px', justifyContent: 'center' }}>
-                          cron: {pm} {ph} {scheduleDayOfMonth} {scheduleMonth} {scheduleWeekday}
+                        <div className="tag justify-center mono text-[11px] py-2.5 rounded-xl" style={{ borderRadius: 11 }}>
+                          cron: {pm} {ph} {schDom} {schMon} {schWday}
                         </div>
-                        <div style={{ display: 'flex', gap: '12px', paddingTop: '8px' }}>
-                          <motion.button onClick={() => setShowScheduleModal(false)} className="btn-ghost" style={{ flex: 1, padding: '13px', borderRadius: '12px', cursor: 'pointer' }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>Cancel</motion.button>
-                          <motion.button onClick={saveSchedule} className="btn-lime" style={{ flex: 1, padding: '13px', borderRadius: '12px', cursor: 'pointer' }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>Create Schedule</motion.button>
+                        <div className="flex gap-3 pt-1">
+                          <motion.button onClick={() => setShowSchModal(false)} className="btn btn-ghost flex-1" whileHover={{ scale: 1.01 }}>Cancel</motion.button>
+                          <motion.button onClick={saveSchedule} className="btn btn-primary flex-1" whileHover={{ scale: 1.01 }}>Create</motion.button>
                         </div>
                       </div>
                     </motion.div>
@@ -1784,208 +1192,159 @@ export default function App() {
               </AnimatePresence>
 
               {schedules.length === 0 ? (
-                <motion.div
-                  style={{ textAlign: 'center', padding: '72px 36px', borderRadius: '20px', border: '1px dashed var(--border-dim)', background: 'var(--surface)' }}
-                  variants={fadeInUp}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  <Calendar size={48} style={{ color: 'var(--fg-4)', margin: '0 auto 20px' }} />
-                  <p style={{ color: 'var(--fg-3)', fontSize: '15px', margin: '0 0 8px' }}>No active schedules</p>
-                  <p style={{ color: 'var(--fg-4)', fontSize: '13px', margin: 0 }}>Set up schedules to continuously monitor repositories.</p>
-                </motion.div>
+                <div className="text-center p-20 rounded-2xl" style={{ border: '1px dashed var(--b1)' }}>
+                  <Calendar size={44} style={{ color: 'var(--t3)', margin: '0 auto 16px' }} />
+                  <p style={{ color: 'var(--t2)' }}>No schedules yet.</p>
+                </div>
               ) : (
-                <motion.div
-                  style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '14px' }}
-                  variants={staggerContainer}
-                  initial="hidden"
-                  animate="visible"
-                >
+                <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
                   {schedules.map((s: any) => (
-                    <motion.div
-                      key={s.repo}
-                      className="glass-card"
-                      style={{ borderRadius: '18px', padding: '24px', position: 'relative' }}
-                      variants={scaleIn}
-                      whileHover={{ y: -4 }}
-                      transition={{ type: 'spring', stiffness: 300 }}
-                    >
-                      <motion.button onClick={() => deleteSchedule(s.repo)} style={{ position: 'absolute', top: '18px', right: '18px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-void)', background: 'var(--raised)', color: 'var(--fg-3)', cursor: 'pointer' }} whileHover={{ scale: 1.1, borderColor: 'var(--red)' }}>
+                    <motion.div key={s.repo} className="card p-6 relative" whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 280 }}>
+                      <motion.button onClick={() => fixstackApi.deleteSchedule(s.repo).then(() => { fetchData(); toast('Deleted', 'info'); })}
+                        className="btn btn-danger absolute p-2 rounded-xl" style={{ top: 16, right: 16 }} whileHover={{ scale: 1.1 }}>
                         <Trash2 size={13} />
                       </motion.button>
-                      <p style={{ fontWeight: 600, margin: '0 0 6px', paddingRight: '40px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Github size={15} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
+                      <p className="font-semibold text-sm mb-1 truncate pr-12 flex items-center gap-2">
+                        <Github size={14} style={{ color: 'var(--t2)', flexShrink: 0 }} />
                         {s.repo.replace('https://github.com/', '')}
                       </p>
-                      <div style={{ padding: '14px', borderRadius: '12px', background: 'var(--surface)', border: '1px solid var(--border-void)', marginBottom: '14px', fontSize: '12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                          <span style={{ color: 'var(--fg-3)' }}>Frequency</span>
-                          <span style={{ fontWeight: 600 }}>{formatCron(s.cronExpression)}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: 'var(--fg-3)' }}>Cron</span>
-                          <span className="mono" style={{ fontSize: '11px', color: 'var(--fg-2)' }}>{s.cronExpression}</span>
-                        </div>
+                      <div className="p-3 rounded-xl mt-4 mb-4 text-xs" style={{ background: 'var(--b0)', border: '1px solid var(--b1)' }}>
+                        <div className="flex justify-between mb-1.5"><span style={{ color: 'var(--t2)' }}>Frequency</span><span className="font-semibold">{cronLabel(s.cronExpression)}</span></div>
+                        <div className="flex justify-between"><span style={{ color: 'var(--t2)' }}>Cron</span><span className="mono text-[11px]">{s.cronExpression}</span></div>
                       </div>
-                      <motion.button onClick={() => runScheduleNow(s.repo)} className="btn-ghost" style={{ width: '100%', padding: '11px', borderRadius: '10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-                        <PlayCircle size={14} /> Run Now
+                      <motion.button onClick={() => fixstackApi.runNowSchedule(s.repo).then(() => { toast('Triggered', 'success'); setTab('history'); setTimeout(fetchData, 1000); })}
+                        className="btn btn-ghost w-full justify-center text-xs py-2.5" style={{ borderRadius: 10 }} whileHover={{ scale: 1.01 }}>
+                        <PlayCircle size={13} />Run Now
                       </motion.button>
                     </motion.div>
                   ))}
-                </motion.div>
+                </div>
               )}
             </motion.div>
           )}
 
-          {/* ══════════════════════════════ SETTINGS ══════════════════════════════ */}
-          {currentTab === 'settings' && (
-            <motion.div
-              key="settings"
-              style={{ maxWidth: '680px' }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <motion.div
-                style={{ marginBottom: '32px' }}
-                variants={fadeInUp}
-                initial="hidden"
-                animate="visible"
-              >
-                <h2 className="display" style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.02em' }}>Settings</h2>
-                <p style={{ color: 'var(--fg-3)', fontSize: '14px', margin: 0 }}>Manage tokens, AI keys, and integrations</p>
-              </motion.div>
+          {/* ════════════════ SETTINGS ════════════════ */}
+          {tab === 'settings' && (
+            <motion.div key="settings" style={{ maxWidth: 660 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
 
-              <motion.form
-                onSubmit={saveSettings}
-                style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
-                variants={staggerContainer}
-                initial="hidden"
-                animate="visible"
-              >
-                {/* GitHub Token */}
-                <motion.div className="glass-card" style={{ borderRadius: '18px', padding: '24px' }} variants={fadeInUp}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                    <Github size={13} /> GitHub Token
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input type={showGithubSettingToken ? 'text' : 'password'} value={settings.githubToken || ''} onChange={e => setSettings({ ...settings, githubToken: e.target.value })} className="input-void input-mono" style={{ width: '100%', padding: '13px 48px 13px 16px', borderRadius: '10px', fontSize: '12px' }} placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" />
-                    <button type="button" onClick={() => setShowGithubSettingToken(v => !v)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>{showGithubSettingToken ? <EyeOff size={15} /> : <Eye size={15} />}</button>
-                  </div>
-                </motion.div>
+              <div className="mb-8">
+                <h2 className="display font-extrabold tracking-tight mb-1" style={{ fontSize: 28, letterSpacing: '-0.025em' }}>Settings</h2>
+                <p className="text-sm" style={{ color: 'var(--t2)' }}>Tokens, keys, and integrations</p>
+              </div>
 
-                {/* Groq Key */}
-                <motion.div className="glass-card" style={{ borderRadius: '18px', padding: '24px' }} variants={fadeInUp}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                    <Brain size={13} /> Groq API Key
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input type={showGroqKey ? 'text' : 'password'} value={settings.groqApiKey || ''} onChange={e => setSettings({ ...settings, groqApiKey: e.target.value })} className="input-void input-mono" style={{ width: '100%', padding: '13px 48px 13px 16px', borderRadius: '10px', fontSize: '12px' }} placeholder="gsk_xxxxxxxxxxxxxxxxxxxx" />
-                    <button type="button" onClick={() => setShowGroqKey(v => !v)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>{showGroqKey ? <EyeOff size={15} /> : <Eye size={15} />}</button>
-                  </div>
-                </motion.div>
+              <form onSubmit={async e => { e.preventDefault(); try { await fixstackApi.saveSettings(settings.webhookUrl, settings.email, settings.githubToken, settings.groqApiKey, settings.webhookSecret); toast('Saved', 'success'); } catch { toast('Failed to save', 'error'); } }}
+                className="flex flex-col gap-4">
+
+                {[
+                  { key: 'githubToken', label: 'GitHub Token', icon: <Github size={13} />, show: showGhTok, setShow: setShowGhTok, ph: 'ghp_xxxxxxxxxxxxxxxxxxxx', mono: true },
+                  { key: 'groqApiKey',  label: 'Groq API Key',  icon: <Brain size={13} />,  show: showGroq,  setShow: setShowGroq,  ph: 'gsk_xxxxxxxxxxxxxxxxxxxx', mono: true },
+                  { key: 'webhookSecret', label: 'Webhook Secret', icon: <Lock size={13} />, show: showWhSec, setShow: setShowWhSec, ph: 'Optional HMAC secret' },
+                ].map(f => (
+                  <motion.div key={f.key} className="card p-6"
+                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                    <label className="section-label flex items-center gap-2">{f.icon}{f.label}</label>
+                    <div className="relative">
+                      <input type={f.show ? 'text' : 'password'}
+                        value={(settings as any)[f.key] || ''}
+                        onChange={e => setSettings({ ...settings, [f.key]: e.target.value })}
+                        className={`input ${f.mono ? 'input-mono' : ''}`}
+                        style={{ paddingRight: 48 }}
+                        placeholder={f.ph}
+                      />
+                      <button type="button" onClick={() => f.setShow((v: boolean) => !v)}
+                        className="absolute" style={{ right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--t2)', cursor: 'pointer' }}>
+                        {f.show ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
 
                 {/* Webhook URL */}
-                <motion.div className="glass-card" style={{ borderRadius: '18px', padding: '24px' }} variants={fadeInUp}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                    <Bell size={13} /> Webhook URL
-                  </label>
-                  <input type="url" value={settings.webhookUrl || ''} onChange={e => setSettings({ ...settings, webhookUrl: e.target.value })} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }} placeholder="https://hooks.slack.com/..." />
-                </motion.div>
-
-                {/* Webhook Secret */}
-                <motion.div className="glass-card" style={{ borderRadius: '18px', padding: '24px' }} variants={fadeInUp}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                    <Lock size={13} /> Webhook Secret
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input type={showWebhookSecret ? 'text' : 'password'} value={settings.webhookSecret || ''} onChange={e => setSettings({ ...settings, webhookSecret: e.target.value })} className="input-void" style={{ width: '100%', padding: '13px 48px 13px 16px', borderRadius: '10px', fontSize: '13px' }} placeholder="Optional HMAC secret" />
-                    <button type="button" onClick={() => setShowWebhookSecret(v => !v)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>{showWebhookSecret ? <EyeOff size={15} /> : <Eye size={15} />}</button>
-                  </div>
+                <motion.div className="card p-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                  <label className="section-label flex items-center gap-2"><Bell size={13} />Webhook URL</label>
+                  <input type="url" value={settings.webhookUrl || ''} onChange={e => setSettings({ ...settings, webhookUrl: e.target.value })}
+                    className="input text-sm" placeholder="https://hooks.slack.com/…" />
                 </motion.div>
 
                 {/* Email */}
-                <motion.div className="glass-card" style={{ borderRadius: '18px', padding: '24px' }} variants={fadeInUp}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-3)', display: 'block', marginBottom: '12px' }}>Email Alerts</label>
-                  <input type="email" value={settings.email || ''} onChange={e => setSettings({ ...settings, email: e.target.value })} className="input-void" style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', fontSize: '13px' }} placeholder="security@company.com" />
+                <motion.div className="card p-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                  <label className="section-label">Email Alerts</label>
+                  <input type="email" value={settings.email || ''} onChange={e => setSettings({ ...settings, email: e.target.value })}
+                    className="input text-sm" placeholder="security@company.com" />
                 </motion.div>
 
                 {/* Webhook endpoint */}
-                <motion.div className="glass-card" style={{ borderRadius: '18px', padding: '24px', borderColor: 'var(--border-lime)', background: 'linear-gradient(135deg, rgba(0, 255, 140, 0.04), transparent)' }} variants={fadeInUp}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--lime)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                    <Terminal size={13} /> GitHub App Webhook Endpoint
-                  </label>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <code className="mono" style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', background: 'var(--surface)', border: '1px solid var(--border-void)', fontSize: '12px', color: 'var(--lime)', overflowX: 'auto', display: 'block' }}>
+                <motion.div className="card-lime p-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                  <label className="section-label flex items-center gap-2" style={{ color: 'var(--lime)' }}><Terminal size={13} />GitHub App Webhook URL</label>
+                  <div className="flex gap-3">
+                    <code className="mono flex-1 px-4 py-3 rounded-xl text-xs overflow-x-auto block" style={{ background: 'var(--b0)', border: '1px solid var(--b1)', color: 'var(--lime)' }}>
                       https://fixstack-backend.onrender.com/api/webhook
                     </code>
-                    <motion.button type="button" onClick={() => { navigator.clipboard.writeText('https://fixstack-backend.onrender.com/api/webhook'); setCopiedWebhook(true); addToast('Copied!', 'success'); setTimeout(() => setCopiedWebhook(false), 2000); }} className="btn-ghost" style={{ padding: '12px 16px', borderRadius: '10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flexShrink: 0 }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                      {copiedWebhook ? <Check size={14} /> : <Copy size={14} />} {copiedWebhook ? 'Copied' : 'Copy'}
+                    <motion.button type="button" onClick={() => { navigator.clipboard.writeText('https://fixstack-backend.onrender.com/api/webhook'); setCopiedWh(true); toast('Copied!', 'success'); setTimeout(() => setCopiedWh(false), 2000); }}
+                      className="btn btn-ghost text-xs px-4 rounded-xl shrink-0" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+                      {copiedWh ? <Check size={14} /> : <Copy size={14} />}{copiedWh ? 'Copied' : 'Copy'}
                     </motion.button>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '18px' }}>
-                    <motion.button type="button" onClick={testWebhook} className="btn-ghost" style={{ padding: '11px 18px', borderRadius: '10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-                      <Zap size={14} /> Test Webhook
+                  <div className="flex justify-end gap-3 mt-5">
+                    <motion.button type="button" onClick={async () => { try { await fixstackApi.testWebhook(); toast('Test sent', 'success'); } catch (e: any) { toast(e.response?.data?.error || 'Failed', 'error'); } }}
+                      className="btn btn-ghost text-xs py-2.5 rounded-xl" whileHover={{ scale: 1.02 }}>
+                      <Zap size={13} />Test
                     </motion.button>
-                    <motion.button type="submit" className="btn-lime" style={{ padding: '11px 22px', borderRadius: '10px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-                      <Check size={15} /> Save Settings
+                    <motion.button type="submit" className="btn btn-primary text-sm px-6 py-2.5 rounded-xl" whileHover={{ scale: 1.02 }}>
+                      <Check size={15} />Save Settings
                     </motion.button>
                   </div>
                 </motion.div>
-              </motion.form>
+              </form>
             </motion.div>
           )}
+
         </AnimatePresence>
       </main>
 
-      {/* ─── Help FAB ─────────────────────────────────────────────────────── */}
+      {/* ─── Help FAB ──────────────────────────────── */}
       <motion.button
-        onClick={() => setShowHelpModal(true)}
-        className="btn-lime"
-        style={{ position: 'fixed', bottom: '28px', right: '28px', width: '52px', height: '52px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 800, zIndex: 30, cursor: 'pointer', padding: 0 }}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
+        onClick={() => setShowHelp(true)}
+        className="btn btn-primary"
+        style={{ position: 'fixed', bottom: 28, right: 28, width: 50, height: 50, borderRadius: '50%', padding: 0, fontSize: 20, fontWeight: 800, zIndex: 30 }}
+        whileHover={{ scale: 1.12 }}
+        whileTap={{ scale: 0.93 }}
         initial={{ opacity: 0, scale: 0 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.5, type: 'spring', stiffness: 300 }}
+        transition={{ delay: 0.6, type: 'spring', stiffness: 280 }}
       >
         ?
       </motion.button>
 
-      {/* ─── Help Modal ───────────────────────────────────────────────────── */}
+      {/* ─── Help modal ────────────────────────────── */}
       <AnimatePresence>
-        {showHelpModal && (
-          <motion.div
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', zIndex: 100, padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="glass-card-raised"
-              style={{ width: '100%', maxWidth: '600px', borderRadius: '24px', padding: '32px', position: 'relative' }}
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            >
-              <motion.button onClick={() => setShowHelpModal(false)} style={{ position: 'absolute', top: '24px', right: '24px', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }} whileHover={{ scale: 1.1 }}><XCircle size={24} /></motion.button>
-              <h3 className="display" style={{ fontWeight: 800, fontSize: '20px', margin: '0 0 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <Info size={20} style={{ color: 'var(--lime)' }} /> GitHub Webhook Setup
+        {showHelp && (
+          <motion.div className="fixed inset-0 flex items-center justify-center p-6 z-50"
+            style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(14px)' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className="card-raised w-full p-9 relative" style={{ maxWidth: 560, borderRadius: 24 }}
+              initial={{ opacity: 0, scale: 0.9, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}>
+              <motion.button onClick={() => setShowHelp(false)}
+                style={{ position: 'absolute', top: 20, right: 20, color: 'var(--t2)', background: 'none', border: 'none', cursor: 'pointer' }}
+                whileHover={{ scale: 1.1 }}><XCircle size={22} /></motion.button>
+              <h3 className="display font-extrabold text-xl mb-6 flex items-center gap-3">
+                <Info size={20} style={{ color: 'var(--lime)' }} />GitHub Webhook Setup
               </h3>
-              <div style={{ color: 'var(--fg-2)', fontSize: '14px', lineHeight: 1.75 }}>
-                <p style={{ marginBottom: '18px' }}>Configure a GitHub Webhook so FixStack automatically scans on every push or PR.</p>
-                <ol style={{ paddingLeft: '22px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div className="text-sm leading-relaxed" style={{ color: 'var(--t1)' }}>
+                <p className="mb-5">Configure a GitHub Webhook so FixStack auto-scans on every push.</p>
+                <ol className="pl-5 flex flex-col gap-3" style={{ listStyleType: 'decimal' }}>
                   {[
-                    'Go to your GitHub repo -> Settings -> Webhooks -> Add webhook',
-                    <>Set Payload URL to: <code className="mono" style={{ background: 'var(--raised)', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', color: 'var(--lime)' }}>https://fixstack-backend.onrender.com/api/webhook</code></>,
-                    <>Content type: <code className="mono" style={{ background: 'var(--raised)', padding: '3px 8px', borderRadius: '6px', fontSize: '12px' }}>application/json</code></>,
-                    'Set Secret to match GITHUB_WEBHOOK_SECRET in your Settings',
-                    'Events: select Pushes and Pull requests',
-                    'Ensure Active is checked and click Add webhook'
+                    'Go to your repo → Settings → Webhooks → Add webhook',
+                    <>Payload URL: <code className="mono text-[11px]" style={{ background: 'var(--b1)', padding: '2px 8px', borderRadius: 5, color: 'var(--lime)' }}>https://fixstack-backend.onrender.com/api/webhook</code></>,
+                    <>Content type: <code className="mono text-[11px]" style={{ background: 'var(--b1)', padding: '2px 8px', borderRadius: 5 }}>application/json</code></>,
+                    'Secret: matches your GITHUB_WEBHOOK_SECRET in Settings',
+                    'Events: Pushes + Pull requests',
+                    'Check Active and save',
                   ].map((item, i) => <li key={i}>{item}</li>)}
                 </ol>
-                <div style={{ marginTop: '24px', padding: '16px', borderRadius: '12px', background: 'var(--lime-dim)', border: '1px solid var(--border-lime)', color: 'var(--fg-2)', fontSize: '13px' }}>
-                  <strong style={{ color: 'var(--lime)' }}>Note:</strong> FixStack ignores pushes that don&apos;t touch dependency files, saving resources.
+                <div className="mt-6 p-4 rounded-xl text-xs" style={{ background: 'var(--lime-dim)', border: '1px solid var(--b-lime)', color: 'var(--t1)' }}>
+                  <strong style={{ color: 'var(--lime)' }}>Note:</strong> FixStack skips pushes that don't touch dependency files.
                 </div>
               </div>
             </motion.div>
@@ -1993,21 +1352,18 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* ─── Toasts ───────────────────────────────────────────────────────── */}
-      <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '10px', pointerEvents: 'none' }}>
+      {/* ─── Toasts ────────────────────────────────── */}
+      <div style={{ position: 'fixed', top: 24, right: 24, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 10, pointerEvents: 'none' }}>
         <AnimatePresence>
           {toasts.map(t => (
-            <motion.div
-              key={t.id}
-              className={`toast toast-${t.type}`}
+            <motion.div key={t.id} className={`toast toast-${t.type}`}
               style={{ pointerEvents: 'auto' }}
-              initial={{ opacity: 0, x: 50, scale: 0.9 }}
+              initial={{ opacity: 0, x: 40, scale: 0.9 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 50, scale: 0.9 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            >
-              {t.type === 'error' ? <AlertCircle size={15} /> : t.type === 'success' ? <CheckCircle2 size={15} /> : <Info size={15} />}
-              {t.message}
+              exit={{ opacity: 0, x: 40, scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 24 }}>
+              {t.type === 'success' ? <CheckCircle2 size={14} /> : t.type === 'error' ? <AlertCircle size={14} /> : <Info size={14} />}
+              {t.msg}
             </motion.div>
           ))}
         </AnimatePresence>
