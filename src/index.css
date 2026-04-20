@@ -738,28 +738,28 @@
 
 .project-title { color: var(--t0); }
 
-:root:not(.light) .project-title {
-  color: #F4F8FF;
-  text-shadow: 0 0 20px rgba(76, 110, 255, 0.16);
+:root.light .project-title {
+  color: #DCE7FF;
+  text-shadow: 0 0 18px rgba(124, 151, 255, 0.22);
 }
 
-:root:not(.light) .nav-item {
-  color: #A6B4DE;
+:root.light .sidebar .nav-item {
+  color: #90A4D8;
 }
 
-:root:not(.light) .nav-item:hover {
-  color: #EAF0FF;
+:root.light .sidebar .nav-item:hover {
+  color: #ECF2FF;
   border-color: rgba(255,255,255,0.12);
 }
 
-:root:not(.light) .nav-item.active {
-  color: #36FFA7;
-  border-color: rgba(0,255,135,0.42);
-  background: linear-gradient(90deg, rgba(0,255,135,0.2) 0%, rgba(0,255,135,0.03) 100%);
+:root.light .sidebar .nav-item.active {
+  color: #1BFF9B;
+  border-color: rgba(27,255,155,0.5);
+  background: linear-gradient(90deg, rgba(27,255,155,0.2) 0%, rgba(27,255,155,0.03) 100%);
 }
 
-:root:not(.light) .dashboard-hero-title {
-  color: #F2F7FF;
+:root.light .dashboard-hero-title {
+  color: #0B1330;
 }
 
 .main-wrap {
