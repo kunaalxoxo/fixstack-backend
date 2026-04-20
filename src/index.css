@@ -736,6 +736,32 @@
 .sidebar.mobile-open { width: 260px; }
 .sidebar.mobile-open .sidebar-lbl { display: inline; }
 
+.project-title { color: var(--t0); }
+
+:root:not(.light) .project-title {
+  color: #F4F8FF;
+  text-shadow: 0 0 20px rgba(76, 110, 255, 0.16);
+}
+
+:root:not(.light) .nav-item {
+  color: #A6B4DE;
+}
+
+:root:not(.light) .nav-item:hover {
+  color: #EAF0FF;
+  border-color: rgba(255,255,255,0.12);
+}
+
+:root:not(.light) .nav-item.active {
+  color: #36FFA7;
+  border-color: rgba(0,255,135,0.42);
+  background: linear-gradient(90deg, rgba(0,255,135,0.2) 0%, rgba(0,255,135,0.03) 100%);
+}
+
+:root:not(.light) .dashboard-hero-title {
+  color: #F2F7FF;
+}
+
 .main-wrap {
   margin-left: 72px;
   padding: 32px 28px;

@@ -597,7 +597,7 @@ export default function App() {
           >
             <Shield size={17} style={{ color: 'var(--lime)' }} />
           </motion.div>
-          <span className="display sidebar-lbl font-extrabold" style={{ fontSize: 18, letterSpacing: '-0.02em' }}>
+          <span className="display sidebar-lbl font-extrabold project-title" style={{ fontSize: 18, letterSpacing: '-0.02em' }}>
             Fix<span style={{ color: 'var(--lime)' }}>Stack</span>
           </span>
         </div>
@@ -677,7 +677,7 @@ export default function App() {
                 </motion.div>
 
                 <motion.h1
-                  className="display font-extrabold leading-none tracking-tighter mb-5"
+                  className="display dashboard-hero-title font-extrabold leading-none tracking-tighter mb-5"
                   style={{ fontSize: 'clamp(36px,5.5vw,58px)' }}
                   variants={fadeUp}
                 >
