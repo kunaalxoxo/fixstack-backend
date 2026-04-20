@@ -736,6 +736,32 @@
 .sidebar.mobile-open { width: 260px; }
 .sidebar.mobile-open .sidebar-lbl { display: inline; }
 
+.project-title { color: var(--t0); }
+
+:root.light .project-title {
+  color: #DCE7FF;
+  text-shadow: 0 0 18px rgba(124, 151, 255, 0.22);
+}
+
+:root.light .sidebar .nav-item {
+  color: #90A4D8;
+}
+
+:root.light .sidebar .nav-item:hover {
+  color: #ECF2FF;
+  border-color: rgba(255,255,255,0.12);
+}
+
+:root.light .sidebar .nav-item.active {
+  color: #1BFF9B;
+  border-color: rgba(27,255,155,0.5);
+  background: linear-gradient(90deg, rgba(27,255,155,0.2) 0%, rgba(27,255,155,0.03) 100%);
+}
+
+:root.light .dashboard-hero-title {
+  color: #0B1330;
+}
+
 .main-wrap {
   margin-left: 72px;
   padding: 32px 28px;
