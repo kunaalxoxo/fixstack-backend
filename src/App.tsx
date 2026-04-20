@@ -94,11 +94,30 @@ const DEMO_FILES = [
   'src/services/planner.ts',
   'src/services/githubPR.ts',
 ];
+const DEMO_DELAY_MIN_MS = 500;
+const DEMO_DELAY_RANGE_MS = 700;
+const TAB_TRANSITION_DELAY_MS = 700;
+
+const makeInlineImage = (label: string, start: string, end: string) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${start}"/>
+          <stop offset="100%" stop-color="${end}"/>
+        </linearGradient>
+      </defs>
+      <rect width="900" height="420" fill="url(#g)"/>
+      <circle cx="760" cy="100" r="80" fill="rgba(255,255,255,0.18)"/>
+      <circle cx="190" cy="340" r="120" fill="rgba(255,255,255,0.12)"/>
+      <text x="58" y="210" fill="white" font-size="56" font-family="Arial, sans-serif" font-weight="700">${label}</text>
+    </svg>
+  `)}`;
 
 const AI_COMMANDS: Array<AiCommandResult & { keywords: string[] }> = [
   {
     command: 'run demo',
-    details: 'Triggers a synthetic security scan using demo dependencies and streams file discovery with 0.5–1.2s gaps.',
+    details: 'Triggers a synthetic security scan using demo dependencies and streams file discovery with 0.5-1.2s gaps.',
     answer: 'Click "Run Demo" to simulate an end-to-end FixStack run with staged file discovery.',
     keywords: ['run demo', 'demo', 'simulate'],
   },
@@ -383,7 +402,7 @@ export default function App() {
     }
   };
 
-  const startDemoFileLapse = () => {
+  const startDemoFileStream = () => {
     clearDemoTimer();
     setDemoFilesShown([]);
     setDemoStreaming(true);
@@ -396,7 +415,7 @@ export default function App() {
       }
       setDemoFilesShown(prev => [...prev, DEMO_FILES[idx]]);
       idx += 1;
-      const delay = Math.floor(Math.random() * 701) + 500;
+      const delay = DEMO_DELAY_MIN_MS + Math.floor(Math.random() * (DEMO_DELAY_RANGE_MS + 1));
       demoTimerRef.current = window.setTimeout(revealNext, delay);
     };
     revealNext();
@@ -413,9 +432,10 @@ export default function App() {
       setAiResult({ command: match.command, details: match.details, answer: match.answer });
       return;
     }
+    const sampleCommands = AI_COMMANDS.slice(0, 4).map(item => `"${item.command}"`).join(', ');
     setAiResult({
       command: normalized,
-      details: 'No exact workflow match found. Try commands like "run demo", "scan repository", "view history", or "schedule scan".',
+      details: `No exact workflow match found. Try commands like ${sampleCommands}.`,
       answer: 'I can guide you through available FixStack actions once you provide one of the supported intents.',
     });
   };
@@ -461,7 +481,7 @@ export default function App() {
     tabLoaderRef.current = window.setTimeout(() => {
       setTabLoading(false);
       tabLoaderRef.current = null;
-    }, 700);
+    }, TAB_TRANSITION_DELAY_MS);
     return () => {
       if (tabLoaderRef.current) {
         window.clearTimeout(tabLoaderRef.current);
@@ -475,7 +495,9 @@ export default function App() {
       if (tab === 'history' || tab === 'dashboard') { const r = await fixstackApi.getScans(); setHistory(r.data); }
       if (tab === 'schedules') { const r = await fixstackApi.getSchedules(); setSchedules(r.data); }
       if (tab === 'settings')  { const r = await fixstackApi.getSettings();  setSettings(r.data); }
-    } catch {} finally { setTabLoading(false); }
+    } catch (error) {
+      console.error('Failed to fetch section data:', error);
+    }
   };
 
   /* ── poll ── */
@@ -502,7 +524,7 @@ export default function App() {
     const final = url || repoUrl;
     if (!demo && !final.startsWith('https://github.com/')) { setErr('Enter a valid GitHub URL'); return; }
     if (demo) {
-      startDemoFileLapse();
+      startDemoFileStream();
     } else {
       clearDemoTimer();
       setDemoStreaming(false);
@@ -956,7 +978,7 @@ export default function App() {
                   {demoStreaming && <span className="tag tag-teal text-[10px]"><Loader2 size={10} className="anim-spin" />Streaming</span>}
                 </div>
                 <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>
-                  Demo reveals files with a randomized 0.5s–1.2s lapse between entries.
+                  Demo reveals files with a randomized 0.5-1.2s interval between entries.
                 </p>
                 <div className="grid gap-2">
                   {demoFilesShown.length === 0 ? (
@@ -989,17 +1011,17 @@ export default function App() {
                     {
                       title: 'About',
                       text: 'FixStack coordinates agents that discover vulnerable dependencies and propose safe upgrades.',
-                      image: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=900&q=80',
+                      image: makeInlineImage('About', '#2563EB', '#0EA5E9'),
                     },
                     {
                       title: 'Description',
                       text: 'Every run combines CVE intelligence, contextual AI reasoning, and remediation planning.',
-                      image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=900&q=80',
+                      image: makeInlineImage('Description', '#8B5CF6', '#14B8A6'),
                     },
                     {
                       title: 'Contact',
                       text: 'Need onboarding help? Configure webhook + alert email in Settings and monitor every scan.',
-                      image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=900&q=80',
+                      image: makeInlineImage('Contact', '#059669', '#84CC16'),
                     },
                   ].map((card, i) => (
                     <motion.div
