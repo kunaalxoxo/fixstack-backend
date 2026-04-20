@@ -83,6 +83,38 @@ const AnimatedNumber = ({ value }: { value: number }) => {
   return <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>{disp}</motion.span>;
 };
 
+// Copy to clipboard helper with animation
+const useCopy = () => {
+  const [copied, setCopied] = useState(false);
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      return true;
+    } catch { return false; }
+  };
+  return { copied, copy };
+};
+
+// Retry dots visualization
+const RetryDots = ({ attempts }: { attempts?: number }) => {
+  if (!attempts || attempts < 2) return null;
+  return (
+    <motion.div className="retry-dots" style={{ marginLeft: '8px' }}>
+      {Array.from({ length: Math.min(attempts, 5) }).map((_, i) => (
+        <motion.div
+          key={i}
+          className={`retry-dot ${i === attempts - 1 ? 'success' : 'failed'}`}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: i * 0.1 }}
+        />
+      ))}
+    </motion.div>
+  );
+};
+
 // Animated background orbs
 const BackgroundOrbs = () => (
   <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -199,6 +231,62 @@ const AGENT_META: Record<string, { initials: string; bg: string }> = {
   'Remediation Output Agent': { initials: 'RO', bg: '#059669' },
 };
 const getAgentMeta = (name: string) => AGENT_META[name] || { initials: name.slice(0, 2).toUpperCase(), bg: '#374151' };
+
+// ─── PR Celebration Card ───────────────────────────────────────────────────────
+
+const PRCelebrationCard = ({ run }: { run: Run }) => (
+  <motion.div
+    style={{
+      position: 'relative',
+      background: 'linear-gradient(135deg, rgba(0, 255, 140, 0.15) 0%, rgba(0, 255, 140, 0.05) 100%)',
+      border: '1px solid var(--border-lime)',
+      borderRadius: '18px',
+      padding: '48px 32px',
+      textAlign: 'center',
+      overflow: 'hidden',
+      boxShadow: `0 0 60px -20px var(--lime-glow), inset 0 0 40px -20px var(--lime-dim)`
+    }}
+    initial={{ opacity: 0, scale: 0.95, y: 20 }}
+    animate={{ opacity: 1, scale: 1, y: 0 }}
+    transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+  >
+    {/* Top gradient line */}
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '1px', background: 'linear-gradient(90deg, transparent, var(--lime), transparent)', opacity: 0.6 }} />
+    
+    {/* Bottom gradient line */}
+    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '1px', background: 'linear-gradient(90deg, transparent, var(--lime), transparent)', opacity: 0.6 }} />
+    
+    <motion.div
+      animate={{ scale: [1, 1.1, 1] }}
+      transition={{ duration: 2, repeat: Infinity }}
+      style={{ marginBottom: '16px' }}
+    >
+      <Sparkles size={40} style={{ color: 'var(--lime)', margin: '0 auto' }} />
+    </motion.div>
+    
+    <h2 className="display" style={{ fontSize: '28px', fontWeight: 800, color: 'var(--lime)', margin: '16px 0 8px' }}>
+      Pull Request Created
+    </h2>
+    <p style={{ color: 'var(--fg-2)', marginBottom: '24px', fontSize: '15px' }}>
+      Your vulnerability fixes have been merged into a new PR
+    </p>
+    
+    {run.prUrl && (
+      <motion.a
+        href={run.prUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+      >
+        <button className="btn-lime" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '14px 28px', borderRadius: '12px', fontSize: '14px', fontWeight: 600 }}>
+          <Github size={16} /> View PR on GitHub
+          <ArrowRight size={14} />
+        </button>
+      </motion.a>
+    )}
+  </motion.div>
+);
 
 // ─── Timeline Event Card ───────────────────────────────────────────────────────
 
