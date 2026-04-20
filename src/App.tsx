@@ -85,6 +85,67 @@ const useDuration = (run: Run | null) => {
 
 /* ─── GH repo type ───────────────────────────────── */
 type GhRepo = { id: number; full_name: string; html_url: string; private: boolean };
+type SectionTab = 'dashboard' | 'history' | 'schedules' | 'settings';
+type AiCommandResult = { command: string; details: string; answer: string };
+
+const DEMO_FILES = [
+  'package.json',
+  'src/services/scanner.ts',
+  'src/services/planner.ts',
+  'src/services/githubPR.ts',
+];
+const DEMO_DELAY_MIN_MS = 500;
+const DEMO_DELAY_RANGE_MS = 700;
+const TAB_TRANSITION_DELAY_MS = 700;
+
+const makeInlineImage = (label: string, start: string, end: string) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${start}"/>
+          <stop offset="100%" stop-color="${end}"/>
+        </linearGradient>
+      </defs>
+      <rect width="900" height="420" fill="url(#g)"/>
+      <circle cx="760" cy="100" r="80" fill="rgba(255,255,255,0.18)"/>
+      <circle cx="190" cy="340" r="120" fill="rgba(255,255,255,0.12)"/>
+      <text x="58" y="210" fill="white" font-size="56" font-family="Arial, sans-serif" font-weight="700">${label}</text>
+    </svg>
+  `)}`;
+
+const AI_COMMANDS: Array<AiCommandResult & { keywords: string[] }> = [
+  {
+    command: 'run demo',
+    details: 'Triggers a synthetic security scan using demo dependencies and streams file discovery with 0.5-1.2s gaps.',
+    answer: 'Click "Run Demo" to simulate an end-to-end FixStack run with staged file discovery.',
+    keywords: ['run demo', 'demo', 'simulate'],
+  },
+  {
+    command: 'scan repository',
+    details: 'Scans one selected GitHub repository for vulnerable dependencies and generates remediation data.',
+    answer: 'Choose a repository from "Repository Scan" and FixStack will start a full scan.',
+    keywords: ['scan repo', 'scan repository', 'scan project'],
+  },
+  {
+    command: 'view history',
+    details: 'Shows previous runs, status, vulnerability counts, and linked PR outcomes.',
+    answer: 'Open the History section to inspect all past scans and reload any run.',
+    keywords: ['history', 'past scans', 'previous runs'],
+  },
+  {
+    command: 'schedule scan',
+    details: 'Creates cron-based automated scans for continuous dependency monitoring.',
+    answer: 'Open Schedules and add a cron schedule for a repository URL.',
+    keywords: ['schedule', 'cron', 'automate'],
+  },
+  {
+    command: 'configure settings',
+    details: 'Stores tokens, webhook URL, alert email, and webhook secret for integrations.',
+    answer: 'Use Settings to save credentials and test webhook connectivity.',
+    keywords: ['settings', 'configure', 'token', 'webhook'],
+  },
+];
 
 /* ═══════════════════════════════════════════════════
    SUB-COMPONENTS
@@ -275,7 +336,8 @@ export default function App() {
   const [repoLoading, setRepoLoading] = useState(false);
 
   /* ── nav ── */
-  const [tab, setTab] = useState<'dashboard' | 'history' | 'schedules' | 'settings'>('dashboard');
+  const [tab, setTab] = useState<SectionTab>('dashboard');
+  const [tabLoading, setTabLoading] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   /* ── scan state ── */
@@ -286,6 +348,8 @@ export default function App() {
   const [selectedRepo, setSelectedRepo] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState<string | null>(null);
+  const [demoFilesShown, setDemoFilesShown] = useState<string[]>([]);
+  const [demoStreaming, setDemoStreaming] = useState(false);
 
   /* ── other data ── */
   const [history, setHistory]     = useState<any[]>([]);
@@ -296,6 +360,8 @@ export default function App() {
   const [search, setSearch]       = useState('');
   const [showSchModal, setShowSchModal] = useState(false);
   const [showHelp, setShowHelp]   = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiResult, setAiResult] = useState<AiCommandResult | null>(null);
 
   /* ── schedule form ── */
   const [schRepo, setSchRepo]   = useState('');
@@ -311,6 +377,8 @@ export default function App() {
   const [copiedWh, setCopiedWh]       = useState(false);
 
   const pollRef = useRef<number | null>(null);
+  const tabLoaderRef = useRef<number | null>(null);
+  const demoTimerRef = useRef<number | null>(null);
   const dur = useDuration(run);
 
   /* ── toast ── */
@@ -318,6 +386,58 @@ export default function App() {
     const id = Math.random().toString(36).slice(2);
     setToasts(p => [...p, { id, msg, type }]);
     setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 4000);
+  };
+
+  const switchTab = (nextTab: SectionTab) => {
+    setMobileOpen(false);
+    if (nextTab === tab) return;
+    setTabLoading(true);
+    setTab(nextTab);
+  };
+
+  const clearDemoTimer = () => {
+    if (demoTimerRef.current) {
+      window.clearTimeout(demoTimerRef.current);
+      demoTimerRef.current = null;
+    }
+  };
+
+  const startDemoFileStream = () => {
+    clearDemoTimer();
+    setDemoFilesShown([]);
+    setDemoStreaming(true);
+    let idx = 0;
+    const revealNext = () => {
+      if (idx >= DEMO_FILES.length) {
+        setDemoStreaming(false);
+        demoTimerRef.current = null;
+        return;
+      }
+      setDemoFilesShown(prev => [...prev, DEMO_FILES[idx]]);
+      idx += 1;
+      const delay = DEMO_DELAY_MIN_MS + Math.floor(Math.random() * (DEMO_DELAY_RANGE_MS + 1));
+      demoTimerRef.current = window.setTimeout(revealNext, delay);
+    };
+    revealNext();
+  };
+
+  const runAiAssistant = (command: string) => {
+    const normalized = command.trim().toLowerCase();
+    if (!normalized) {
+      toast('Enter a command for AI Assist', 'info');
+      return;
+    }
+    const match = AI_COMMANDS.find(item => item.keywords.some(k => normalized.includes(k)));
+    if (match) {
+      setAiResult({ command: match.command, details: match.details, answer: match.answer });
+      return;
+    }
+    const sampleCommands = AI_COMMANDS.slice(0, 4).map(item => `"${item.command}"`).join(', ');
+    setAiResult({
+      command: normalized,
+      details: `No exact workflow match found. Try commands like ${sampleCommands}.`,
+      answer: 'I can guide you through available FixStack actions once you provide one of the supported intents.',
+    });
   };
 
   /* ── auth ── */
@@ -355,12 +475,29 @@ export default function App() {
   /* ── data ── */
   useEffect(() => { if (authed) fetchData(); }, [authed, tab]);
 
+  useEffect(() => {
+    if (!tabLoading) return;
+    if (tabLoaderRef.current) window.clearTimeout(tabLoaderRef.current);
+    tabLoaderRef.current = window.setTimeout(() => {
+      setTabLoading(false);
+      tabLoaderRef.current = null;
+    }, TAB_TRANSITION_DELAY_MS);
+    return () => {
+      if (tabLoaderRef.current) {
+        window.clearTimeout(tabLoaderRef.current);
+        tabLoaderRef.current = null;
+      }
+    };
+  }, [tabLoading, tab]);
+
   const fetchData = async () => {
     try {
       if (tab === 'history' || tab === 'dashboard') { const r = await fixstackApi.getScans(); setHistory(r.data); }
       if (tab === 'schedules') { const r = await fixstackApi.getSchedules(); setSchedules(r.data); }
       if (tab === 'settings')  { const r = await fixstackApi.getSettings();  setSettings(r.data); }
-    } catch {}
+    } catch (error) {
+      console.error('Failed to fetch section data:', error);
+    }
   };
 
   /* ── poll ── */
@@ -376,12 +513,23 @@ export default function App() {
     } catch {}
   };
   const startPoll = (id: string) => { stopPoll(); pollRef.current = window.setInterval(() => fetchRun(id), 2500); };
-  useEffect(() => () => stopPoll(), []);
+  useEffect(() => () => {
+    stopPoll();
+    clearDemoTimer();
+    if (tabLoaderRef.current) window.clearTimeout(tabLoaderRef.current);
+  }, []);
 
   /* ── scan ── */
   const scan = async (demo = false, url?: string) => {
     const final = url || repoUrl;
     if (!demo && !final.startsWith('https://github.com/')) { setErr('Enter a valid GitHub URL'); return; }
+    if (demo) {
+      startDemoFileStream();
+    } else {
+      clearDemoTimer();
+      setDemoStreaming(false);
+      setDemoFilesShown([]);
+    }
     setLoading(true); setErr(null); setRun(null); setEvents([]);
     try {
       const r = await fixstackApi.startScan(demo ? undefined : final);
@@ -399,12 +547,12 @@ export default function App() {
     try {
       await fixstackApi.startOrgScan(orgName);
       toast(`Queued org: ${orgName}`, 'success');
-      setOrgName(''); setLoading(false); setTab('history');
+      setOrgName(''); setLoading(false); switchTab('history');
     } catch (e: any) { setErr(e.message); setLoading(false); }
   };
 
   const loadRun = (id: string) => {
-    setTab('dashboard'); window.scrollTo({ top: 0, behavior: 'smooth' });
+    switchTab('dashboard'); window.scrollTo({ top: 0, behavior: 'smooth' });
     setRun(null); setEvents([]); fetchRun(id); startPoll(id);
   };
 
@@ -593,7 +741,7 @@ export default function App() {
             whileHover={{ scale: 1.06 }}
             animate={{ boxShadow: ['0 0 20px var(--lime-glow)', '0 0 35px var(--lime-strong)', '0 0 20px var(--lime-glow)'] }}
             transition={{ duration: 2.5, repeat: Infinity }}
-            onClick={() => { setRun(null); setTab('dashboard'); }}
+            onClick={() => { setRun(null); switchTab('dashboard'); }}
           >
             <Shield size={17} style={{ color: 'var(--lime)' }} />
           </motion.div>
@@ -607,7 +755,7 @@ export default function App() {
           {navTabs.map((t, i) => (
             <motion.button
               key={t.id}
-              onClick={() => { setTab(t.id); setMobileOpen(false); }}
+               onClick={() => switchTab(t.id)}
               className={`nav-item ${tab === t.id ? 'active' : ''}`}
               whileHover={{ x: 3 }}
               whileTap={{ scale: 0.97 }}
@@ -649,6 +797,25 @@ export default function App() {
 
       {/* ─── MAIN ─────────────────────────────────────── */}
       <main className="main-wrap relative z-10 flex-1">
+        <AnimatePresence>
+          {tabLoading && (
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center"
+              style={{ background: 'rgba(2,4,9,0.72)', backdropFilter: 'blur(6px)', zIndex: 60 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <div className="card-raised px-6 py-5 flex items-center gap-3">
+                <Loader2 size={18} className="anim-spin" style={{ color: 'var(--lime)' }} />
+                <div>
+                  <p className="text-sm font-semibold">Switching section…</p>
+                  <p className="text-xs" style={{ color: 'var(--t2)' }}>Loading latest data</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Mobile top bar */}
         <div className="flex items-center justify-between mb-6 md:hidden">
@@ -802,6 +969,136 @@ export default function App() {
                     </motion.div>
                   ))}
                 </div>
+              </motion.div>
+
+              {/* Demo file lapse */}
+              <motion.div className="card p-7" variants={fadeUp} initial="hidden" animate="visible">
+                <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                  <p className="section-label mb-0">Demo file stream</p>
+                  {demoStreaming && <span className="tag tag-teal text-[10px]"><Loader2 size={10} className="anim-spin" />Streaming</span>}
+                </div>
+                <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>
+                  Demo reveals files with a randomized 0.5-1.2s interval between entries.
+                </p>
+                <div className="grid gap-2">
+                  {demoFilesShown.length === 0 ? (
+                    <div className="p-3 rounded-xl text-xs" style={{ background: 'var(--b0)', border: '1px solid var(--b1)', color: 'var(--t2)' }}>
+                      Run demo to watch staged file discovery.
+                    </div>
+                  ) : (
+                    demoFilesShown.map((file, idx) => (
+                      <motion.div
+                        key={file}
+                        className="p-3 rounded-xl flex items-center justify-between"
+                        style={{ background: 'var(--b0)', border: '1px solid var(--b1)' }}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.04 }}
+                      >
+                        <span className="mono text-xs" style={{ color: 'var(--t1)' }}>{file}</span>
+                        <span className="tag text-[10px]">loaded</span>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+
+              {/* More interactive sections */}
+              <motion.div className="card p-7" variants={fadeUp} initial="hidden" animate="visible">
+                <p className="section-label">Explore FixStack</p>
+                <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+                  {[
+                    {
+                      title: 'About',
+                      text: 'FixStack coordinates agents that discover vulnerable dependencies and propose safe upgrades.',
+                      image: makeInlineImage('About', '#2563EB', '#0EA5E9'),
+                    },
+                    {
+                      title: 'Description',
+                      text: 'Every run combines CVE intelligence, contextual AI reasoning, and remediation planning.',
+                      image: makeInlineImage('Description', '#8B5CF6', '#14B8A6'),
+                    },
+                    {
+                      title: 'Contact',
+                      text: 'Need onboarding help? Configure webhook + alert email in Settings and monitor every scan.',
+                      image: makeInlineImage('Contact', '#059669', '#84CC16'),
+                    },
+                  ].map((card, i) => (
+                    <motion.div
+                      key={card.title}
+                      className="rounded-2xl overflow-hidden"
+                      style={{ background: 'var(--b0)', border: '1px solid var(--b1)' }}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.06 }}
+                      whileHover={{ y: -3 }}
+                    >
+                      <img
+                        src={card.image}
+                        alt={card.title}
+                        style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }}
+                        loading="lazy"
+                      />
+                      <div className="p-4">
+                        <p className="font-semibold text-sm mb-1">{card.title}</p>
+                        <p className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>{card.text}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* Mini AI command assistant */}
+              <motion.div className="card p-7" variants={fadeUp} initial="hidden" animate="visible">
+                <p className="section-label">AI Command Assistant</p>
+                <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>
+                  Ask what you need; assistant returns command details and a direct action answer.
+                </p>
+                <div className="flex gap-3 flex-wrap mb-4">
+                  {AI_COMMANDS.map(c => (
+                    <button
+                      key={c.command}
+                      onClick={() => { setAiPrompt(c.command); runAiAssistant(c.command); }}
+                      className="tag text-[10px]"
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {c.command}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-3 flex-wrap">
+                  <input
+                    className="input text-sm"
+                    value={aiPrompt}
+                    onChange={e => setAiPrompt(e.target.value)}
+                    placeholder='Try "run demo" or "schedule scan"'
+                    style={{ flex: 1, minWidth: 240 }}
+                  />
+                  <motion.button
+                    onClick={() => runAiAssistant(aiPrompt)}
+                    className="btn btn-primary text-sm"
+                    style={{ borderRadius: 11 }}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Sparkles size={14} />Ask AI
+                  </motion.button>
+                </div>
+                <AnimatePresence>
+                  {aiResult && (
+                    <motion.div
+                      className="mt-4 p-4 rounded-2xl"
+                      style={{ background: 'var(--b0)', border: '1px solid var(--b1)' }}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                    >
+                      <p className="text-xs mb-2"><span className="section-label" style={{ marginBottom: 0 }}>command</span> <span className="mono" style={{ color: 'var(--lime)' }}>{aiResult.command}</span></p>
+                      <p className="text-xs mb-2" style={{ color: 'var(--t1)' }}>{aiResult.details}</p>
+                      <p className="text-sm font-medium" style={{ color: 'var(--t0)' }}>{aiResult.answer}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             </motion.div>
           )}
@@ -1212,7 +1509,7 @@ export default function App() {
                         <div className="flex justify-between mb-1.5"><span style={{ color: 'var(--t2)' }}>Frequency</span><span className="font-semibold">{cronLabel(s.cronExpression)}</span></div>
                         <div className="flex justify-between"><span style={{ color: 'var(--t2)' }}>Cron</span><span className="mono text-[11px]">{s.cronExpression}</span></div>
                       </div>
-                      <motion.button onClick={() => fixstackApi.runNowSchedule(s.repo).then(() => { toast('Triggered', 'success'); setTab('history'); setTimeout(fetchData, 1000); })}
+                      <motion.button onClick={() => fixstackApi.runNowSchedule(s.repo).then(() => { toast('Triggered', 'success'); switchTab('history'); setTimeout(fetchData, 1000); })}
                         className="btn btn-ghost w-full justify-center text-xs py-2.5" style={{ borderRadius: 10 }} whileHover={{ scale: 1.01 }}>
                         <PlayCircle size={13} />Run Now
                       </motion.button>
