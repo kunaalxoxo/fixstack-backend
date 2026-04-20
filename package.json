@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "scripts": {
     "dev:frontend": "vite",
-    "dev:backend": "cross-env TS_NODE_PROJECT=tsconfig.json ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev:backend": "ts-node-dev --project tsconfig.json --respawn --transpile-only src/server.ts",
     "build": "vite build",
-    "start": "cross-env TS_NODE_PROJECT=tsconfig.server.json node -r ts-node/register/transpile-only src/server.ts",
+    "start": "ts-node --project tsconfig.server.json --transpile-only src/server.ts",
     "preview": "vite preview"
   },
   "dependencies": {
