@@ -7,7 +7,7 @@ import {
   ArrowRight, Activity, Box, XCircle, LogOut, Settings as SettingsIcon,
   Calendar, Building, Bell, LayoutDashboard, Brain, Flame, Info, Search,
   Trash2, Copy, PlayCircle, Zap, Check, Skull, AlertTriangle, RefreshCw, Menu, Lock, Eye, EyeOff,
-  ChevronRight, Terminal, Sparkles
+  ChevronRight, Terminal, Sparkles, Moon, Sun
 } from 'lucide-react';
 
 // ─── Animation Variants ────────────────────────────────────────────────────────
@@ -332,6 +332,25 @@ const TimelineEventCard = ({ event, run, index }: { event: RunEvent; run: Run; i
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved) return saved === 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  const toggleTheme = () => {
+    setIsDarkMode(prev => !prev);
+  };
+
+  useEffect(() => {
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+    if (isDarkMode) {
+      document.documentElement.classList.remove('light');
+    } else {
+      document.documentElement.classList.add('light');
+    }
+  }, [isDarkMode]);
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [githubToken, setGithubToken] = useState('');
   const [githubRepos, setGithubRepos] = useState<GithubRepo[]>([]);
@@ -747,6 +766,31 @@ export default function App() {
           </motion.p>
         </motion.div>
 
+        {/* Theme toggle */}
+        <motion.button
+          onClick={toggleTheme}
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            width: '48px',
+            height: '48px',
+            borderRadius: '12px',
+            background: 'var(--glass-light)',
+            border: '1px solid var(--border-dim)',
+            color: 'var(--fg-2)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100
+          }}
+          whileHover={{ scale: 1.05, borderColor: 'var(--border-mid)' }}
+          whileTap={{ scale: 0.95 }}
+        >
+          {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+        </motion.button>
+
         {/* Toasts */}
         <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <AnimatePresence>
@@ -868,8 +912,20 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Logout */}
-        <div style={{ padding: '12px', borderTop: '1px solid var(--border-void)' }}>
+        {/* Theme toggle and Logout */}
+        <div style={{ padding: '12px', borderTop: '1px solid var(--border-void)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <motion.button
+            onClick={toggleTheme}
+            className="nav-item"
+            style={{ width: '100%' }}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {isDarkMode ? <Sun size={17} style={{ flexShrink: 0 }} /> : <Moon size={17} style={{ flexShrink: 0 }} />}
+            <span className="sidebar-label" style={{ whiteSpace: 'nowrap' }}>
+              {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+            </span>
+          </motion.button>
           <motion.button
             onClick={handleLogout}
             className="nav-item"

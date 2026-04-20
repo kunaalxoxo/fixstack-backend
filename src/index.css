@@ -27,6 +27,31 @@
     --fg-3: #4a5578;
     --fg-4: #2a3352;
 
+    color-scheme: dark;
+  }
+
+  :root.light {
+    /* Light mode palette */
+    --void: #f8fafc;
+    --deep: #f1f5f9;
+    --surface: #e2e8f0;
+    --raised: #f0f4f8;
+    --glass: rgba(255, 255, 255, 0.85);
+    --glass-light: rgba(0, 0, 0, 0.02);
+    --glass-lighter: rgba(0, 0, 0, 0.04);
+
+    /* Borders - light mode */
+    --border-void: rgba(0, 0, 0, 0.05);
+    --border-dim: rgba(0, 0, 0, 0.1);
+    --border-mid: rgba(0, 0, 0, 0.15);
+    --border-lime: rgba(22, 163, 74, 0.3);
+
+    /* Text - light mode */
+    --fg: #0f172a;
+    --fg-2: #475569;
+    --fg-3: #94a3b8;
+    --fg-4: #cbd5e1;
+
     /* Lime (primary accent) - more vibrant */
     --lime: #00ff8c;
     --lime-2: #00e67d;
@@ -54,6 +79,31 @@
     --font-mono: 'JetBrains Mono', monospace;
 
     color-scheme: dark;
+  }
+
+  :root.light {
+    /* Light mode status colors */
+    --lime: #16a34a;
+    --lime-2: #15803d;
+    --lime-dim: rgba(22, 163, 74, 0.08);
+    --lime-glow: rgba(22, 163, 74, 0.2);
+    --lime-glow-strong: rgba(22, 163, 74, 0.4);
+
+    /* Light mode status badges */
+    --red: #ef4444;
+    --red-dim: rgba(239, 68, 68, 0.1);
+    --orange: #f97316;
+    --orange-dim: rgba(249, 115, 22, 0.1);
+    --amber: #eab308;
+    --amber-dim: rgba(234, 179, 8, 0.1);
+    --blue: #0ea5e9;
+    --blue-dim: rgba(14, 165, 233, 0.1);
+    --violet: #8b5cf6;
+    --violet-dim: rgba(139, 92, 246, 0.1);
+    --cyan: #06b6d4;
+    --cyan-dim: rgba(6, 182, 212, 0.1);
+
+    color-scheme: light;
   }
 
   * {
