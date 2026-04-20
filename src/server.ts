@@ -1,4 +1,4 @@
-import app from './app';
+import app from './server/expressApp';
 
 const PORT = Number(process.env.PORT) || 3001;
 
