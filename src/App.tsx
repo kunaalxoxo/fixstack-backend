@@ -141,6 +141,18 @@ const AI_COMMANDS: Array<AiCommandResult & { keywords: string[] }> = [
   },
 ];
 
+const getLocalAiCommandResult = (normalized: string): AiCommandResult => {
+  const match = AI_COMMANDS.find(item => item.keywords.some(k => normalized.includes(k)));
+  if (match) return { command: match.command, details: match.details, answer: match.answer };
+
+  const sampleCommands = AI_COMMANDS.slice(0, 4).map(item => `"${item.command}"`).join(', ');
+  return {
+    command: normalized,
+    details: `No exact workflow match found. Try commands like ${sampleCommands}.`,
+    answer: 'I can guide you through available FixStack actions once you provide one of the supported intents.',
+  };
+};
+
 /* ═══════════════════════════════════════════════════
    SUB-COMPONENTS
 ═══════════════════════════════════════════════════ */
@@ -302,20 +314,29 @@ const AiAssistantModal = ({
 }: { onClose: () => void; initialPrompt?: string }) => {
   const [prompt, setPrompt] = useState(initialPrompt || '');
   const [result, setResult] = useState<AiCommandResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [fallbackNotice, setFallbackNotice] = useState('');
 
-  const runAi = (cmd: string) => {
+  const runAi = async (cmd: string) => {
     const normalized = cmd.trim().toLowerCase();
     if (!normalized) return;
-    const match = AI_COMMANDS.find(item => item.keywords.some(k => normalized.includes(k)));
-    if (match) {
-      setResult({ command: match.command, details: match.details, answer: match.answer });
-    } else {
-      const sampleCommands = AI_COMMANDS.slice(0, 4).map(item => `"${item.command}"`).join(', ');
+    setLoading(true);
+    setFallbackNotice('');
+    try {
+      const response = await fixstackApi.askAiChat(cmd);
+      const answer = String(response.data?.answer || '').trim();
+      if (!answer) throw new Error('Empty AI response');
+      const model = String(response.data?.model || '').trim();
       setResult({
         command: normalized,
-        details: `No exact workflow match found. Try commands like ${sampleCommands}.`,
-        answer: 'I can guide you through available FixStack actions once you provide one of the supported intents.',
+        details: model ? `Groq response generated with ${model}.` : 'Groq response generated successfully.',
+        answer,
       });
+    } catch (e: any) {
+      setResult(getLocalAiCommandResult(normalized));
+      setFallbackNotice(e?.response?.data?.error || e?.message || 'AI unavailable');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -361,6 +382,7 @@ const AiAssistantModal = ({
             onChange={e => setPrompt(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && runAi(prompt)}
             placeholder='Try "run demo" or "schedule scan"…'
+            disabled={loading}
             autoFocus
             style={{ flex: 1 }}
           />
@@ -368,10 +390,17 @@ const AiAssistantModal = ({
             onClick={() => runAi(prompt)}
             className="btn btn-primary text-sm shrink-0"
             style={{ borderRadius: 11 }}
+            disabled={loading}
             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
-            <Sparkles size={14} />Ask
+            {loading ? <><Loader2 size={14} className="anim-spin" />Thinking…</> : <><Sparkles size={14} />Ask</>}
           </motion.button>
         </div>
+
+        {fallbackNotice && (
+          <p className="text-xs mb-3" style={{ color: 'var(--t2)' }}>
+            AI unavailable ({fallbackNotice}). Showing local assistant response.
+          </p>
+        )}
 
         <AnimatePresence mode="wait">
           {result && (

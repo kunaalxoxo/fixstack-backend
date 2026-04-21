@@ -31,5 +31,6 @@ export const fixstackApi = {
   getSettings: () => api.get('/api/settings'),
   saveSettings: (webhookUrl: string, email: string, githubToken?: string, groqApiKey?: string, webhookSecret?: string) => 
     api.post('/api/settings', { webhookUrl, email, githubToken, groqApiKey, webhookSecret }),
+  askAiChat: (message: string) => api.post('/api/ai/chat', { message }),
   testWebhook: () => api.post('/api/test-webhook'),
 };

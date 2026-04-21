@@ -1,12 +1,14 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
+import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/store';
 import { DependencyInput, Run } from '../types';
 import { WorkflowOrchestrator } from '../services/orchestrator';
 import { RepoFetcher } from '../services/repoFetcher';
 import { Logger } from '../services/logger';
+import { getGroqModelCandidates } from '../services/groq';
 import * as cron from 'node-cron';
 
 const app = express();
@@ -247,6 +249,55 @@ app.get('/api/settings', (_req: Request, res: Response) => {
     groqApiKey: db.getSetting('groqApiKey') || '',
     webhookSecret: db.getSetting('webhookSecret') || '',
   });
+});
+
+app.post('/api/ai/chat', async (req: Request, res: Response) => {
+  const message = String(req.body?.message || '').trim();
+  if (!message) return res.status(400).json({ error: 'message is required' });
+
+  const groqApiKey = (process.env.GROQ_API_KEY || db.getSetting('groqApiKey') || '').trim();
+  if (!groqApiKey) {
+    return res.status(400).json({ error: 'Groq API key is not configured in Settings' });
+  }
+
+  const candidateModels = getGroqModelCandidates();
+  let lastError = 'Unknown Groq error';
+
+  for (const model of candidateModels) {
+    try {
+      const response = await axios.post(
+        'https://api.groq.com/openai/v1/chat/completions',
+        {
+          model,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are FixStack AI assistant. Help users with repository security scans, CVEs, remediation, schedules, webhook setup, and dashboard usage. Keep answers concise and practical.',
+            },
+            { role: 'user', content: message },
+          ],
+          temperature: 0.2,
+          max_tokens: 300,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${groqApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 10000,
+        }
+      );
+
+      const answer = String(response.data?.choices?.[0]?.message?.content || '').trim();
+      if (!answer) throw new Error('Empty response from Groq');
+      return res.json({ answer, model });
+    } catch (error: any) {
+      lastError = error?.response?.data?.error?.message || error?.message || 'Unknown Groq error';
+    }
+  }
+
+  return res.status(502).json({ error: `Groq request failed: ${lastError}` });
 });
 
 // Schedules
