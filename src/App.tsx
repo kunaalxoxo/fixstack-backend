@@ -824,11 +824,11 @@ export default function App() {
                   <span className="tag tag-lime text-[10px]"><Sparkles size={9} />v1.0 LIVE</span>
                   <span className="tag text-[10px]">OSV.dev + NVD + Groq</span>
                 </motion.div>
-                <motion.h1 className="dashboard-hero-title font-extrabold mb-5"
+                <motion.h1 className="dashboard-hero-title mb-5"
                   style={{ fontSize: 'clamp(36px,5.5vw,58px)' }} variants={fadeUp}>
                   Autonomous<br /><span className="text-grad">Security Agent</span>
                 </motion.h1>
-                <motion.p className="text-base leading-relaxed mb-7" style={{ color: 'var(--t1)', maxWidth: 560 }} variants={fadeUp}>
+                <motion.p className="text-base leading-relaxed mb-7" style={{ color: 'var(--t1)', maxWidth: 520 }} variants={fadeUp}>
                   Scans repos, reasons about exploitability with AI, and ships remediation PRs — without you touching a thing.
                 </motion.p>
                 <motion.div className="flex gap-3 flex-wrap" variants={fadeUp}>
