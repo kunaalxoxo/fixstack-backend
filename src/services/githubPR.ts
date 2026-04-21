@@ -20,12 +20,16 @@ function parseGitHubRepo(repoUrl: string): { owner: string; repo: string } {
     }
 
     const urlObj = new URL(normalized);
+    if (urlObj.hostname !== 'github.com') {
+      throw new Error('Invalid repo URL host');
+    }
     const parts = urlObj.pathname.split('/').filter(Boolean);
     const owner = parts[0];
     const rawRepo = parts[1] || '';
     const repo = rawRepo.replace(/\.git$/i, '');
+    const allowed = /^[A-Za-z0-9._-]+$/;
 
-    if (!owner || !repo) {
+    if (!owner || !repo || !allowed.test(owner) || !allowed.test(repo)) {
       throw new Error('Invalid repo URL');
     }
 
@@ -51,6 +55,9 @@ export class GitHubPRService {
 
     try {
       const { owner, repo } = parseGitHubRepo(repoUrl);
+      const encodedOwner = encodeURIComponent(owner);
+      const encodedRepo = encodeURIComponent(repo);
+      const repoApiBase = `https://api.github.com/repos/${encodedOwner}/${encodedRepo}`;
 
       const headers = {
         'Authorization': `Bearer ${githubToken}`,
@@ -65,15 +72,18 @@ export class GitHubPRService {
       await logger.log('GitHub PR Agent', 'Setup', 'INFO', `Preparing PR for ${owner}/${repo} on branch ${newBranch}`);
 
       // 1. Get default branch and its latest commit SHA
-      const repoRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+      const repoRes = await axios.get(repoApiBase, { headers });
       const defaultBranch = repoRes.data.default_branch;
 
-      const refRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${defaultBranch}`, { headers });
+      const refRes = await axios.get(
+        `${repoApiBase}/git/refs/heads/${encodeURIComponent(defaultBranch)}`,
+        { headers }
+      );
       const latestSha = refRes.data.object.sha;
 
       // 2. Create new branch
       await axios.post(
-        `https://api.github.com/repos/${owner}/${repo}/git/refs`,
+        `${repoApiBase}/git/refs`,
         { ref: `refs/heads/${newBranch}`, sha: latestSha },
         { headers }
       );
@@ -90,7 +100,7 @@ export class GitHubPRService {
 
       // 3. Get manifest file
       const pkgRes = await axios.get(
-        `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(manifestPath)}?ref=${newBranch}`,
+        `${repoApiBase}/contents/${encodeURIComponent(manifestPath)}?ref=${encodeURIComponent(newBranch)}`,
         { headers }
       );
 
@@ -113,7 +123,7 @@ export class GitHubPRService {
 
       // 5. Commit updated manifest
       await axios.put(
-        `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(manifestPath)}`,
+        `${repoApiBase}/contents/${encodeURIComponent(manifestPath)}`,
         {
           message: `FixStack: Update vulnerable dependencies\n\nRun ID: ${runId}`,
           content: updatedContentBase64,
@@ -131,7 +141,7 @@ export class GitHubPRService {
         `\n\nRun ID: ${runId}`;
 
       const prRes = await axios.post(
-        `https://api.github.com/repos/${owner}/${repo}/pulls`,
+        `${repoApiBase}/pulls`,
         {
           title,
           body,
@@ -159,6 +169,10 @@ export class GitHubPRService {
       );
       return null;
     }
+  }
+
+  private static escapeForRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   private static getManifestPath(manifestType: SupportedManifestType): string | null {
@@ -193,7 +207,7 @@ export class GitHubPRService {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('#')) return line;
         for (const r of remediations) {
-          const escaped = r.pkgName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const escaped = this.escapeForRegex(r.pkgName);
           const regex = new RegExp(`^\\s*${escaped}\\s*(==|>=|<=|~=|!=|>|<)\\s*[^\\s#]+`, 'i');
           if (regex.test(line)) {
             changesMade = true;
@@ -209,7 +223,7 @@ export class GitHubPRService {
       let updated = content;
       let changesMade = false;
       for (const r of remediations) {
-        const escaped = r.pkgName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const escaped = this.escapeForRegex(r.pkgName);
         const regex = new RegExp(`(^|\\n)(\\s*)(${escaped})(\\s+)([^\\s]+)`, 'g');
         updated = updated.replace(regex, (match, start, indent, name, spaces, currentVersion) => {
           if (currentVersion === r.newVersion || currentVersion === `v${r.newVersion}`) return match;
@@ -226,9 +240,11 @@ export class GitHubPRService {
       let changesMade = false;
       for (const r of remediations) {
         const [groupId, artifactId] = r.pkgName.split(':');
-        if (!groupId || !artifactId) continue;
-        const escapedGroup = groupId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const escapedArtifact = artifactId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (!groupId || !artifactId) {
+          continue;
+        }
+        const escapedGroup = this.escapeForRegex(groupId);
+        const escapedArtifact = this.escapeForRegex(artifactId);
         const regex = new RegExp(
           `(<dependency>[\\s\\S]*?<groupId>${escapedGroup}</groupId>[\\s\\S]*?<artifactId>${escapedArtifact}</artifactId>[\\s\\S]*?<version>)([^<]+)(</version>)`,
           'g'
