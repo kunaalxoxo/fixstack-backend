@@ -126,6 +126,7 @@ export class WorkflowOrchestrator {
           this.run.input.repoUrl,
           remediations,
           this.run.id,
+          this.run.input.manifestType,
           this.logger
         );
         if (prResult) {

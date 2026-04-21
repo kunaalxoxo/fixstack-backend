@@ -3,6 +3,8 @@ import { RemediationResult } from '../types';
 import { Logger } from './logger';
 import { db } from '../db/store';
 
+type SupportedManifestType = 'package.json' | 'requirements.txt' | 'pom.xml' | 'go.mod' | 'yarn.lock';
+
 function parseGitHubRepo(repoUrl: string): { owner: string; repo: string } {
   try {
     // Supports:
@@ -38,6 +40,7 @@ export class GitHubPRService {
     repoUrl: string,
     remediations: RemediationResult[],
     runId: string,
+    manifestType: SupportedManifestType,
     logger: Logger
   ): Promise<{ prUrl: string; prBranch: string } | null> {
     const githubToken = process.env.GITHUB_TOKEN || db.getSetting('githubToken');
@@ -57,6 +60,7 @@ export class GitHubPRService {
 
       const shortRunId = runId.substring(0, 8);
       const newBranch = `fixstack/patch-${shortRunId}`;
+      const manifestPath = this.getManifestPath(manifestType);
 
       await logger.log('GitHub PR Agent', 'Setup', 'INFO', `Preparing PR for ${owner}/${repo} on branch ${newBranch}`);
 
@@ -74,43 +78,42 @@ export class GitHubPRService {
         { headers }
       );
 
-      // 3. Get package.json
+      if (!manifestPath) {
+        await logger.log(
+          'GitHub PR Agent',
+          'Update',
+          'WARNING',
+          `PR creation for manifest type "${manifestType}" is not supported yet.`
+        );
+        return null;
+      }
+
+      // 3. Get manifest file
       const pkgRes = await axios.get(
-        `https://api.github.com/repos/${owner}/${repo}/contents/package.json?ref=${newBranch}`,
+        `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(manifestPath)}?ref=${newBranch}`,
         { headers }
       );
 
       const content = Buffer.from(pkgRes.data.content, 'base64').toString('utf-8');
-      const pkg = JSON.parse(content);
 
-      // 4. Update package.json
+      // 4. Update manifest file
       const fixedRemediations = remediations.filter(r => r.status === 'FIXED');
       if (fixedRemediations.length === 0) {
         await logger.log('GitHub PR Agent', 'Update', 'WARNING', 'No successful remediations to PR.');
         return null;
       }
 
-      let changesMade = false;
-      for (const r of fixedRemediations) {
-        if (pkg.dependencies && pkg.dependencies[r.pkgName]) {
-          pkg.dependencies[r.pkgName] = `^${r.newVersion}`;
-          changesMade = true;
-        } else if (pkg.devDependencies && pkg.devDependencies[r.pkgName]) {
-          pkg.devDependencies[r.pkgName] = `^${r.newVersion}`;
-          changesMade = true;
-        }
-      }
-
-      if (!changesMade) {
-        await logger.log('GitHub PR Agent', 'Update', 'WARNING', 'Dependencies not found in package.json.');
+      const updatedManifest = this.updateManifestContent(manifestType, content, fixedRemediations);
+      if (!updatedManifest.changesMade) {
+        await logger.log('GitHub PR Agent', 'Update', 'WARNING', `Dependencies not found in ${manifestPath}.`);
         return null;
       }
 
-      const updatedContentBase64 = Buffer.from(JSON.stringify(pkg, null, 2) + '\n').toString('base64');
+      const updatedContentBase64 = Buffer.from(updatedManifest.content).toString('base64');
 
-      // 5. Commit updated package.json
+      // 5. Commit updated manifest
       await axios.put(
-        `https://api.github.com/repos/${owner}/${repo}/contents/package.json`,
+        `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(manifestPath)}`,
         {
           message: `FixStack: Update vulnerable dependencies\n\nRun ID: ${runId}`,
           content: updatedContentBase64,
@@ -119,7 +122,7 @@ export class GitHubPRService {
         },
         { headers }
       );
-      await logger.log('GitHub PR Agent', 'Commit', 'SUCCESS', 'Committed updated package.json');
+      await logger.log('GitHub PR Agent', 'Commit', 'SUCCESS', `Committed updated ${manifestPath}`);
 
       // 6. Open PR
       const title = `FixStack: Security updates for ${fixedRemediations.length} dependencies`;
@@ -156,5 +159,89 @@ export class GitHubPRService {
       );
       return null;
     }
+  }
+
+  private static getManifestPath(manifestType: SupportedManifestType): string | null {
+    if (manifestType === 'yarn.lock') return null;
+    return manifestType;
+  }
+
+  private static updateManifestContent(
+    manifestType: SupportedManifestType,
+    content: string,
+    remediations: RemediationResult[]
+  ): { content: string; changesMade: boolean } {
+    if (manifestType === 'package.json') {
+      const pkg = JSON.parse(content);
+      let changesMade = false;
+      for (const r of remediations) {
+        if (pkg.dependencies && pkg.dependencies[r.pkgName]) {
+          pkg.dependencies[r.pkgName] = `^${r.newVersion}`;
+          changesMade = true;
+        } else if (pkg.devDependencies && pkg.devDependencies[r.pkgName]) {
+          pkg.devDependencies[r.pkgName] = `^${r.newVersion}`;
+          changesMade = true;
+        }
+      }
+      return { content: JSON.stringify(pkg, null, 2) + '\n', changesMade };
+    }
+
+    if (manifestType === 'requirements.txt') {
+      const lines = content.split('\n');
+      let changesMade = false;
+      const updatedLines = lines.map((line) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return line;
+        for (const r of remediations) {
+          const escaped = r.pkgName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`^\\s*${escaped}\\s*(==|>=|<=|~=|!=|>|<)\\s*[^\\s#]+`, 'i');
+          if (regex.test(line)) {
+            changesMade = true;
+            return `${r.pkgName}==${r.newVersion}`;
+          }
+        }
+        return line;
+      });
+      return { content: updatedLines.join('\n'), changesMade };
+    }
+
+    if (manifestType === 'go.mod') {
+      let updated = content;
+      let changesMade = false;
+      for (const r of remediations) {
+        const escaped = r.pkgName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(^|\\n)(\\s*)(${escaped})(\\s+)([^\\s]+)`, 'g');
+        updated = updated.replace(regex, (match, start, indent, name, spaces, currentVersion) => {
+          if (currentVersion === r.newVersion || currentVersion === `v${r.newVersion}`) return match;
+          changesMade = true;
+          const newVersion = r.newVersion.startsWith('v') ? r.newVersion : `v${r.newVersion}`;
+          return `${start}${indent}${name}${spaces}${newVersion}`;
+        });
+      }
+      return { content: updated, changesMade };
+    }
+
+    if (manifestType === 'pom.xml') {
+      let updated = content;
+      let changesMade = false;
+      for (const r of remediations) {
+        const [groupId, artifactId] = r.pkgName.split(':');
+        if (!groupId || !artifactId) continue;
+        const escapedGroup = groupId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const escapedArtifact = artifactId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(
+          `(<dependency>[\\s\\S]*?<groupId>${escapedGroup}</groupId>[\\s\\S]*?<artifactId>${escapedArtifact}</artifactId>[\\s\\S]*?<version>)([^<]+)(</version>)`,
+          'g'
+        );
+        updated = updated.replace(regex, (match, before, currentVersion, after) => {
+          if (currentVersion.trim() === r.newVersion) return match;
+          changesMade = true;
+          return `${before}${r.newVersion}${after}`;
+        });
+      }
+      return { content: updated, changesMade };
+    }
+
+    return { content, changesMade: false };
   }
 }
