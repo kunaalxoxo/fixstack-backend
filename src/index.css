@@ -858,11 +858,18 @@
 
 :root.light .dashboard-hero-title { color: #0B1330; }
 
+.dashboard-hero-title {
+  font-family: var(--f-body);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+}
+
 .main-wrap {
   margin-left: 72px;
-  padding: 32px 28px;
+  padding: 28px 24px;
   min-height: 100vh;
 }
-@media (min-width: 1280px) { .main-wrap { margin-left: 260px; padding: 40px 52px; } }
-@media (max-width: 767px)  { .main-wrap { margin-left: 0; padding: 80px 18px 32px; } }
+@media (min-width: 1280px) { .main-wrap { margin-left: 260px; padding: 36px 44px; } }
+@media (max-width: 767px)  { .main-wrap { margin-left: 0; padding: 72px 16px 28px; } }
 @media (max-width: 767px)  { .sidebar  { width: 0; } }
