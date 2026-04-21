@@ -50,9 +50,9 @@
     --teal:   #00D4FF;
     --tea-bg: rgba(0,212,255,0.09);
 
-    --f-display: 'Syne', sans-serif;
-    --f-body:    'Manrope', sans-serif;
-    --f-mono:    'JetBrains Mono', monospace;
+    --f-display: 'Syne', 'DM Serif Display', 'Times New Roman', serif;
+    --f-body:    'Manrope', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --f-mono:    'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 
     color-scheme: dark;
   }
