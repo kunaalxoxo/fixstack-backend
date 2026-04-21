@@ -9,17 +9,15 @@ import {
   LayoutDashboard, Brain, Flame, Info, Search, Trash2,
   Copy, PlayCircle, Zap, Check, Skull, AlertTriangle,
   RefreshCw, Menu, Lock, Eye, EyeOff, ChevronRight,
-  Sparkles, Moon, Sun, Terminal, Play, ArrowUpRight
+  Sparkles, Moon, Sun, Terminal, Play, ArrowUpRight, MessageSquare
 } from 'lucide-react';
 
-/* ─── motion presets ─────────────────────────────── */
 const ease = [0.22, 1, 0.36, 1] as const;
 const fadeUp  = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease } } };
 const fadeIn  = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.4 } } };
 const scaleIn = { hidden: { opacity: 0, scale: 0.92 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease } } };
 const stagger = { visible: { transition: { staggerChildren: 0.07, delayChildren: 0.05 } } };
 
-/* ─── animated number ────────────────────────────── */
 const Num = ({ val }: { val: number }) => {
   const [n, setN] = useState(0);
   useEffect(() => {
@@ -35,7 +33,6 @@ const Num = ({ val }: { val: number }) => {
   return <>{n}</>;
 };
 
-/* ─── agent meta ─────────────────────────────────── */
 const AGENTS: Record<string, { abbr: string; color: string }> = {
   'Repo Scanner':      { abbr: 'RS', color: '#2563EB' },
   'CVE Lookup':        { abbr: 'CV', color: '#7C3AED' },
@@ -51,7 +48,6 @@ const AGENTS: Record<string, { abbr: string; color: string }> = {
 };
 const agentMeta = (n: string) => AGENTS[n] || { abbr: n.slice(0, 2).toUpperCase(), color: '#374151' };
 
-/* ─── severity helpers ───────────────────────────── */
 const sevClass = (s: string) => {
   const u = s.toUpperCase();
   if (u === 'CRITICAL') return 'tag-red sev-critical';
@@ -67,7 +63,6 @@ const SevIcon = ({ s }: { s: string }) => {
   return <Info size={11} />;
 };
 
-/* ─── run duration hook ──────────────────────────── */
 const useDuration = (run: Run | null) => {
   const [secs, setSecs] = useState(0);
   useEffect(() => {
@@ -83,7 +78,6 @@ const useDuration = (run: Run | null) => {
   return secs;
 };
 
-/* ─── GH repo type ───────────────────────────────── */
 type GhRepo = { id: number; full_name: string; html_url: string; private: boolean };
 type SectionTab = 'dashboard' | 'history' | 'schedules' | 'settings';
 type AiCommandResult = { command: string; details: string; answer: string };
@@ -151,7 +145,6 @@ const AI_COMMANDS: Array<AiCommandResult & { keywords: string[] }> = [
    SUB-COMPONENTS
 ═══════════════════════════════════════════════════ */
 
-/* Ambient orbs */
 const Orbs = () => (
   <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
     {[
@@ -170,7 +163,6 @@ const Orbs = () => (
   </div>
 );
 
-/* Timeline event row */
 const EventRow = ({ ev, run, i }: { ev: RunEvent; run: Run; i: number }) => {
   const isPR      = ev.agentName === 'GitHub PR Agent' && ev.toolName === 'PR Created';
   const isRetryW  = ev.agentName === 'Retry Controller' && ev.status === 'WARNING';
@@ -194,27 +186,16 @@ const EventRow = ({ ev, run, i }: { ev: RunEvent; run: Run; i: number }) => {
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: i * 0.04, duration: 0.4, ease }}
     >
-      <motion.div
-        className="agent-pip"
-        style={{ background: meta.color }}
-        whileHover={{ scale: 1.12 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-      >
+      <motion.div className="agent-pip" style={{ background: meta.color }}
+        whileHover={{ scale: 1.12 }} transition={{ type: 'spring', stiffness: 400, damping: 17 }}>
         {meta.abbr}
       </motion.div>
-
-      <motion.div
-        className={`flex-1 ${evClass}`}
-        whileHover={{ x: 3 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-      >
+      <motion.div className={`flex-1 ${evClass}`} whileHover={{ x: 3 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 28 }}>
         {isPR ? (
           <div className="relative z-10">
-            <motion.p
-              className="display text-2xl font-extrabold mb-2"
-              style={{ color: 'var(--lime)' }}
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-            >
+            <motion.p className="display text-2xl font-extrabold mb-2" style={{ color: 'var(--lime)' }}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <Sparkles className="inline mr-2" size={20} />Pull Request Created
             </motion.p>
             <p className="text-sm mb-5" style={{ color: 'var(--t1)' }}>{ev.message}</p>
@@ -261,7 +242,6 @@ const EventRow = ({ ev, run, i }: { ev: RunEvent; run: Run; i: number }) => {
   );
 };
 
-/* Severity donut */
 const Donut = ({ crit, high, med, low }: { crit: number; high: number; med: number; low: number }) => {
   const total = crit + high + med + low || 1;
   const R = 58, C = 2 * Math.PI * R;
@@ -315,10 +295,118 @@ const Donut = ({ crit, high, med, low }: { crit: number; high: number; med: numb
 };
 
 /* ═══════════════════════════════════════════════════
+   AI COMMAND ASSISTANT MODAL (sidebar-triggered)
+═══════════════════════════════════════════════════ */
+const AiAssistantModal = ({
+  onClose, initialPrompt
+}: { onClose: () => void; initialPrompt?: string }) => {
+  const [prompt, setPrompt] = useState(initialPrompt || '');
+  const [result, setResult] = useState<AiCommandResult | null>(null);
+
+  const runAi = (cmd: string) => {
+    const normalized = cmd.trim().toLowerCase();
+    if (!normalized) return;
+    const match = AI_COMMANDS.find(item => item.keywords.some(k => normalized.includes(k)));
+    if (match) {
+      setResult({ command: match.command, details: match.details, answer: match.answer });
+    } else {
+      const sampleCommands = AI_COMMANDS.slice(0, 4).map(item => `"${item.command}"`).join(', ');
+      setResult({
+        command: normalized,
+        details: `No exact workflow match found. Try commands like ${sampleCommands}.`,
+        answer: 'I can guide you through available FixStack actions once you provide one of the supported intents.',
+      });
+    }
+  };
+
+  return (
+    <motion.div className="fixed inset-0 flex items-center justify-center p-6 z-50"
+      style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(14px)' }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.div className="card-raised w-full p-8 relative" style={{ maxWidth: 560, borderRadius: 24 }}
+        initial={{ opacity: 0, scale: 0.9, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}>
+        <motion.button onClick={onClose}
+          style={{ position: 'absolute', top: 20, right: 20, color: 'var(--t2)', background: 'none', border: 'none', cursor: 'pointer' }}
+          whileHover={{ scale: 1.1 }}>
+          <XCircle size={22} />
+        </motion.button>
+
+        <div className="flex items-center gap-3 mb-6">
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--vio-bg)', border: '1px solid rgba(157,120,247,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Sparkles size={18} style={{ color: 'var(--violet)' }} />
+          </div>
+          <div>
+            <h3 className="display font-extrabold text-xl">Ask AI</h3>
+            <p className="text-xs" style={{ color: 'var(--t2)' }}>FixStack command assistant</p>
+          </div>
+        </div>
+
+        {/* Quick commands */}
+        <div className="flex flex-wrap gap-2 mb-5">
+          {AI_COMMANDS.map(c => (
+            <motion.button key={c.command}
+              onClick={() => { setPrompt(c.command); runAi(c.command); }}
+              className="tag text-[10px]"
+              style={{ cursor: 'pointer' }}
+              whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
+              {c.command}
+            </motion.button>
+          ))}
+        </div>
+
+        <div className="flex gap-3 mb-5">
+          <input
+            className="input text-sm"
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && runAi(prompt)}
+            placeholder='Try "run demo" or "schedule scan"…'
+            autoFocus
+            style={{ flex: 1 }}
+          />
+          <motion.button
+            onClick={() => runAi(prompt)}
+            className="btn btn-primary text-sm shrink-0"
+            style={{ borderRadius: 11 }}
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+            <Sparkles size={14} />Ask
+          </motion.button>
+        </div>
+
+        <AnimatePresence mode="wait">
+          {result && (
+            <motion.div
+              className="p-5 rounded-2xl"
+              style={{ background: 'var(--b0)', border: '1px solid var(--b1)' }}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              key={result.command}>
+              <p className="text-xs mb-2 flex items-center gap-2">
+                <span className="section-label mb-0">command</span>
+                <span className="mono" style={{ color: 'var(--violet)' }}>{result.command}</span>
+              </p>
+              <p className="text-xs mb-3 leading-relaxed" style={{ color: 'var(--t1)' }}>{result.details}</p>
+              <div className="p-3 rounded-xl text-sm font-medium" style={{ background: 'var(--lime-dim)', border: '1px solid var(--b-lime)', color: 'var(--t0)' }}>
+                {result.answer}
+              </div>
+            </motion.div>
+          )}
+          {!result && (
+            <motion.div className="text-center py-6" style={{ color: 'var(--t3)' }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <MessageSquare size={28} style={{ margin: '0 auto 10px', color: 'var(--t3)' }} />
+              <p className="text-sm">Pick a quick command or type your own</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+/* ═══════════════════════════════════════════════════
    MAIN APP
 ═══════════════════════════════════════════════════ */
 export default function App() {
-  /* ── theme ── */
   const [dark, setDark] = useState(() => {
     const s = localStorage.getItem('theme');
     return s ? s === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -328,19 +416,19 @@ export default function App() {
     document.documentElement.classList.toggle('light', !dark);
   }, [dark]);
 
-  /* ── auth ── */
   const [authed, setAuthed]   = useState(false);
   const [pat, setPat]         = useState('');
   const [showPat, setShowPat] = useState(false);
   const [repos, setRepos]     = useState<GhRepo[]>([]);
   const [repoLoading, setRepoLoading] = useState(false);
 
-  /* ── nav ── */
   const [tab, setTab] = useState<SectionTab>('dashboard');
   const [tabLoading, setTabLoading] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  /* ── scan state ── */
+  /* ── Ask AI modal state (sidebar-driven, static in nav) ── */
+  const [showAiModal, setShowAiModal] = useState(false);
+
   const [run, setRun]         = useState<Run | null>(null);
   const [events, setEvents]   = useState<RunEvent[]>([]);
   const [repoUrl, setRepoUrl] = useState('');
@@ -351,7 +439,6 @@ export default function App() {
   const [demoFilesShown, setDemoFilesShown] = useState<string[]>([]);
   const [demoStreaming, setDemoStreaming] = useState(false);
 
-  /* ── other data ── */
   const [history, setHistory]     = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [settings, setSettings]   = useState({ webhookUrl: '', email: '', githubToken: '', groqApiKey: '', webhookSecret: '' });
@@ -360,17 +447,13 @@ export default function App() {
   const [search, setSearch]       = useState('');
   const [showSchModal, setShowSchModal] = useState(false);
   const [showHelp, setShowHelp]   = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [aiResult, setAiResult] = useState<AiCommandResult | null>(null);
 
-  /* ── schedule form ── */
   const [schRepo, setSchRepo]   = useState('');
   const [schTime, setSchTime]   = useState('00:00');
   const [schDom, setSchDom]     = useState('*');
   const [schMon, setSchMon]     = useState('*');
   const [schWday, setSchWday]   = useState('*');
 
-  /* ── settings visibility ── */
   const [showGhTok, setShowGhTok]     = useState(false);
   const [showGroq, setShowGroq]       = useState(false);
   const [showWhSec, setShowWhSec]     = useState(false);
@@ -381,7 +464,6 @@ export default function App() {
   const demoTimerRef = useRef<number | null>(null);
   const dur = useDuration(run);
 
-  /* ── toast ── */
   const toast = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Math.random().toString(36).slice(2);
     setToasts(p => [...p, { id, msg, type }]);
@@ -396,23 +478,14 @@ export default function App() {
   };
 
   const clearDemoTimer = () => {
-    if (demoTimerRef.current) {
-      window.clearTimeout(demoTimerRef.current);
-      demoTimerRef.current = null;
-    }
+    if (demoTimerRef.current) { window.clearTimeout(demoTimerRef.current); demoTimerRef.current = null; }
   };
 
   const startDemoFileStream = () => {
-    clearDemoTimer();
-    setDemoFilesShown([]);
-    setDemoStreaming(true);
+    clearDemoTimer(); setDemoFilesShown([]); setDemoStreaming(true);
     let idx = 0;
     const revealNext = () => {
-      if (idx >= DEMO_FILES.length) {
-        setDemoStreaming(false);
-        demoTimerRef.current = null;
-        return;
-      }
+      if (idx >= DEMO_FILES.length) { setDemoStreaming(false); demoTimerRef.current = null; return; }
       setDemoFilesShown(prev => [...prev, DEMO_FILES[idx]]);
       idx += 1;
       const delay = DEMO_DELAY_MIN_MS + Math.floor(Math.random() * (DEMO_DELAY_RANGE_MS + 1));
@@ -421,26 +494,6 @@ export default function App() {
     revealNext();
   };
 
-  const runAiAssistant = (command: string) => {
-    const normalized = command.trim().toLowerCase();
-    if (!normalized) {
-      toast('Enter a command for AI Assist', 'info');
-      return;
-    }
-    const match = AI_COMMANDS.find(item => item.keywords.some(k => normalized.includes(k)));
-    if (match) {
-      setAiResult({ command: match.command, details: match.details, answer: match.answer });
-      return;
-    }
-    const sampleCommands = AI_COMMANDS.slice(0, 4).map(item => `"${item.command}"`).join(', ');
-    setAiResult({
-      command: normalized,
-      details: `No exact workflow match found. Try commands like ${sampleCommands}.`,
-      answer: 'I can guide you through available FixStack actions once you provide one of the supported intents.',
-    });
-  };
-
-  /* ── auth ── */
   useEffect(() => {
     const saved = localStorage.getItem('githubToken');
     if (saved) { setPat(saved); authWithPat(saved); }
@@ -460,8 +513,7 @@ export default function App() {
       }
       setRepos(repos);
       localStorage.setItem('githubToken', token);
-      setAuthed(true);
-      fetchData();
+      setAuthed(true); fetchData();
       toast('GitHub connected', 'success');
     } catch (e: any) {
       toast(e.message || 'Failed to connect', 'error');
@@ -472,22 +524,12 @@ export default function App() {
   const handleLogin = (e: React.FormEvent) => { e.preventDefault(); if (pat.trim()) authWithPat(pat.trim()); };
   const logout = () => { localStorage.removeItem('githubToken'); setAuthed(false); setPat(''); setRepos([]); };
 
-  /* ── data ── */
   useEffect(() => { if (authed) fetchData(); }, [authed, tab]);
-
   useEffect(() => {
     if (!tabLoading) return;
     if (tabLoaderRef.current) window.clearTimeout(tabLoaderRef.current);
-    tabLoaderRef.current = window.setTimeout(() => {
-      setTabLoading(false);
-      tabLoaderRef.current = null;
-    }, TAB_TRANSITION_DELAY_MS);
-    return () => {
-      if (tabLoaderRef.current) {
-        window.clearTimeout(tabLoaderRef.current);
-        tabLoaderRef.current = null;
-      }
-    };
+    tabLoaderRef.current = window.setTimeout(() => { setTabLoading(false); tabLoaderRef.current = null; }, TAB_TRANSITION_DELAY_MS);
+    return () => { if (tabLoaderRef.current) { window.clearTimeout(tabLoaderRef.current); tabLoaderRef.current = null; } };
   }, [tabLoading, tab]);
 
   const fetchData = async () => {
@@ -495,12 +537,9 @@ export default function App() {
       if (tab === 'history' || tab === 'dashboard') { const r = await fixstackApi.getScans(); setHistory(r.data); }
       if (tab === 'schedules') { const r = await fixstackApi.getSchedules(); setSchedules(r.data); }
       if (tab === 'settings')  { const r = await fixstackApi.getSettings();  setSettings(r.data); }
-    } catch (error) {
-      console.error('Failed to fetch section data:', error);
-    }
+    } catch (error) { console.error('Failed to fetch section data:', error); }
   };
 
-  /* ── poll ── */
   const stopPoll = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; setLoading(false); } };
   const fetchRun = async (id: string) => {
     try {
@@ -513,32 +552,18 @@ export default function App() {
     } catch {}
   };
   const startPoll = (id: string) => { stopPoll(); pollRef.current = window.setInterval(() => fetchRun(id), 2500); };
-  useEffect(() => () => {
-    stopPoll();
-    clearDemoTimer();
-    if (tabLoaderRef.current) window.clearTimeout(tabLoaderRef.current);
-  }, []);
+  useEffect(() => () => { stopPoll(); clearDemoTimer(); if (tabLoaderRef.current) window.clearTimeout(tabLoaderRef.current); }, []);
 
-  /* ── scan ── */
   const scan = async (demo = false, url?: string) => {
     const final = url || repoUrl;
     if (!demo && !final.startsWith('https://github.com/')) { setErr('Enter a valid GitHub URL'); return; }
-    if (demo) {
-      startDemoFileStream();
-    } else {
-      clearDemoTimer();
-      setDemoStreaming(false);
-      setDemoFilesShown([]);
-    }
+    if (demo) { startDemoFileStream(); } else { clearDemoTimer(); setDemoStreaming(false); setDemoFilesShown([]); }
     setLoading(true); setErr(null); setRun(null); setEvents([]);
     try {
       const r = await fixstackApi.startScan(demo ? undefined : final);
       toast('Scan started', 'success');
       fetchRun(r.data.runId); startPoll(r.data.runId);
-    } catch (e: any) {
-      setErr(e.response?.data?.error || e.message || 'Failed');
-      toast('Failed to start scan', 'error'); setLoading(false);
-    }
+    } catch (e: any) { setErr(e.response?.data?.error || e.message || 'Failed'); toast('Failed to start scan', 'error'); setLoading(false); }
   };
 
   const orgScan = async () => {
@@ -556,7 +581,6 @@ export default function App() {
     setRun(null); setEvents([]); fetchRun(id); startPoll(id);
   };
 
-  /* ── schedule ── */
   const saveSchedule = async () => {
     if (!schRepo.startsWith('https://github.com/')) { toast('Invalid URL', 'error'); return; }
     const [h = '00', m = '00'] = schTime.split(':');
@@ -567,7 +591,6 @@ export default function App() {
     } catch { toast('Failed to save', 'error'); }
   };
 
-  /* ── steps ── */
   const getStep = () => {
     if (!run || events.length === 0) return 0;
     if (run.status === 'COMPLETED') return 5;
@@ -580,7 +603,6 @@ export default function App() {
   };
   const STEPS = ['Fetch', 'CVE Scan', 'AI Analysis', 'Patching', 'PR'];
 
-  /* ── cron label ── */
   const cronLabel = (c: string) => ({ '0 0 * * *': 'Daily midnight', '0 0 * * 0': 'Weekly Sun', '0 0 * * 1': 'Weekly Mon', '0 * * * *': 'Hourly' }[c] || c);
   const [ph = '00', pm = '00'] = schTime.split(':');
 
@@ -591,22 +613,13 @@ export default function App() {
     return (
       <div className="mesh-bg grid-bg noise scanline relative" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <Orbs />
-
-        <motion.div
-          className="relative z-10 w-full"
-          style={{ maxWidth: 440 }}
-          initial={{ opacity: 0, y: 28 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease }}
-        >
-          {/* Logo */}
+        <motion.div className="relative z-10 w-full" style={{ maxWidth: 440 }}
+          initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease }}>
           <motion.div className="text-center mb-10" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.15, duration: 0.5 }}>
-            <motion.div
-              className="inline-flex items-center justify-center rounded-2xl mb-6"
+            <motion.div className="inline-flex items-center justify-center rounded-2xl mb-6"
               style={{ width: 68, height: 68, background: 'var(--lime-dim)', border: '1px solid var(--b-lime)' }}
               animate={{ boxShadow: ['0 0 30px var(--lime-glow)', '0 0 55px var(--lime-strong)', '0 0 30px var(--lime-glow)'], y: [0, -7, 0] }}
-              transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-            >
+              transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}>
               <Shield size={30} style={{ color: 'var(--lime)' }} />
             </motion.div>
             <h1 className="display font-extrabold tracking-tight" style={{ fontSize: 42, letterSpacing: '-0.04em', lineHeight: 1 }}>
@@ -614,52 +627,25 @@ export default function App() {
             </h1>
             <p className="mt-3 text-sm" style={{ color: 'var(--t1)' }}>Autonomous dependency security agent</p>
           </motion.div>
-
-          {/* Card */}
-          <motion.div
-            className="card-raised border-grad relative p-9"
-            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.5 }}
-          >
+          <motion.div className="card-raised border-grad relative p-9"
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.5 }}>
             <p className="section-label mb-6">Connect GitHub</p>
-
             <form onSubmit={handleLogin} className="flex flex-col gap-4">
               <div className="relative">
                 <Lock size={14} className="absolute" style={{ left: 16, top: '50%', transform: 'translateY(-50%)', color: 'var(--t2)' }} />
-                <input
-                  type={showPat ? 'text' : 'password'}
-                  value={pat}
-                  onChange={e => setPat(e.target.value)}
-                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                  autoFocus
-                  className="input input-mono"
-                  style={{ paddingLeft: 44, paddingRight: 48 }}
-                />
+                <input type={showPat ? 'text' : 'password'} value={pat} onChange={e => setPat(e.target.value)}
+                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autoFocus className="input input-mono" style={{ paddingLeft: 44, paddingRight: 48 }} />
                 <button type="button" onClick={() => setShowPat(v => !v)}
                   className="absolute" style={{ right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--t2)', cursor: 'pointer' }}>
                   {showPat ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-
-              <motion.button
-                type="submit"
-                disabled={repoLoading}
-                className="btn btn-primary w-full justify-center"
-                style={{ borderRadius: 12, padding: '15px', fontSize: 14 }}
-                whileHover={{ scale: 1.015 }}
-                whileTap={{ scale: 0.985 }}
-              >
-                {repoLoading
-                  ? <><Loader2 size={16} className="anim-spin" />Connecting…</>
-                  : <><Github size={16} />Connect GitHub</>
-                }
+              <motion.button type="submit" disabled={repoLoading} className="btn btn-primary w-full justify-center"
+                style={{ borderRadius: 12, padding: '15px', fontSize: 14 }} whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.985 }}>
+                {repoLoading ? <><Loader2 size={16} className="anim-spin" />Connecting…</> : <><Github size={16} />Connect GitHub</>}
               </motion.button>
             </form>
-
-            {/* Feature pills */}
-            <motion.div
-              className="flex flex-wrap gap-2 mt-8 justify-center"
-              variants={stagger} initial="hidden" animate="visible"
-            >
+            <motion.div className="flex flex-wrap gap-2 mt-8 justify-center" variants={stagger} initial="hidden" animate="visible">
               {['CVE Detection', 'AI Context', 'Auto PRs', 'Self-Healing'].map(f => (
                 <motion.span key={f} className="tag text-[11px]" variants={fadeUp}>
                   <span style={{ color: 'var(--lime)', fontSize: 7 }}>●</span>{f}
@@ -667,7 +653,6 @@ export default function App() {
               ))}
             </motion.div>
           </motion.div>
-
           <motion.p className="text-center mt-5 text-xs" style={{ color: 'var(--t2)' }}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
             Requires a PAT with{' '}
@@ -677,25 +662,16 @@ export default function App() {
               style={{ color: 'var(--lime)', textDecoration: 'none' }}>Generate →</a>
           </motion.p>
         </motion.div>
-
-        {/* Theme toggle */}
-        <motion.button
-          onClick={() => setDark(d => !d)}
-          className="btn btn-ghost"
+        <motion.button onClick={() => setDark(d => !d)} className="btn btn-ghost"
           style={{ position: 'fixed', bottom: 24, right: 24, width: 46, height: 46, borderRadius: 12, padding: 0 }}
-          whileHover={{ scale: 1.07 }} whileTap={{ scale: 0.93 }}
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-        >
+          whileHover={{ scale: 1.07 }} whileTap={{ scale: 0.93 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
           {dark ? <Sun size={18} /> : <Moon size={18} />}
         </motion.button>
-
-        {/* Toasts */}
         <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <AnimatePresence>
             {toasts.map(t => (
               <motion.div key={t.id} className={`toast toast-${t.type}`}
-                initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 40 }}
-                transition={{ duration: 0.3 }}>
+                initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 40 }} transition={{ duration: 0.3 }}>
                 {t.type === 'success' ? <CheckCircle2 size={14} /> : t.type === 'error' ? <AlertCircle size={14} /> : <Info size={14} />}
                 {t.msg}
               </motion.div>
@@ -720,7 +696,11 @@ export default function App() {
     <div className="mesh-bg noise relative" style={{ minHeight: '100vh', display: 'flex' }}>
       <Orbs />
 
-      {/* Mobile overlay */}
+      {/* AI Assistant Modal — accessible from any tab via sidebar */}
+      <AnimatePresence>
+        {showAiModal && <AiAssistantModal onClose={() => setShowAiModal(false)} />}
+      </AnimatePresence>
+
       <AnimatePresence>
         {mobileOpen && (
           <motion.div onClick={() => setMobileOpen(false)}
@@ -730,10 +710,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* ─── SIDEBAR ─────────────────────────────────── */}
-      <motion.aside
-        className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}
-        style={{ zIndex: 50 }}
-      >
+      <motion.aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`} style={{ zIndex: 50 }}>
         {/* Logo */}
         <div style={{ padding: '22px 18px', borderBottom: '1px solid var(--b0)', display: 'flex', alignItems: 'center', gap: 13, minHeight: 70 }}>
           <motion.div
@@ -741,8 +718,7 @@ export default function App() {
             whileHover={{ scale: 1.06 }}
             animate={{ boxShadow: ['0 0 20px var(--lime-glow)', '0 0 35px var(--lime-strong)', '0 0 20px var(--lime-glow)'] }}
             transition={{ duration: 2.5, repeat: Infinity }}
-            onClick={() => { setRun(null); switchTab('dashboard'); }}
-          >
+            onClick={() => { setRun(null); switchTab('dashboard'); }}>
             <Shield size={17} style={{ color: 'var(--lime)' }} />
           </motion.div>
           <span className="display sidebar-lbl font-extrabold project-title" style={{ fontSize: 18, letterSpacing: '-0.02em' }}>
@@ -753,40 +729,51 @@ export default function App() {
         {/* Nav */}
         <nav style={{ flex: 1, padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 3 }}>
           {navTabs.map((t, i) => (
-            <motion.button
-              key={t.id}
-               onClick={() => switchTab(t.id)}
+            <motion.button key={t.id} onClick={() => switchTab(t.id)}
               className={`nav-item ${tab === t.id ? 'active' : ''}`}
-              whileHover={{ x: 3 }}
-              whileTap={{ scale: 0.97 }}
-              initial={{ opacity: 0, x: -12 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.04 }}
-            >
+              whileHover={{ x: 3 }} whileTap={{ scale: 0.97 }}
+              initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}>
               <t.icon size={17} style={{ flexShrink: 0 }} />
               <span className="sidebar-lbl">{t.label}</span>
             </motion.button>
           ))}
+
+          {/* ── Ask AI — static sidebar button ─────────────── */}
+          <div style={{ height: 1, background: 'var(--b1)', margin: '8px 4px' }} />
+          <motion.button
+            onClick={() => { setShowAiModal(true); setMobileOpen(false); }}
+            className="nav-item nav-item-ai"
+            whileHover={{ x: 3 }}
+            whileTap={{ scale: 0.97 }}
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.22 }}
+          >
+            <Sparkles size={17} style={{ flexShrink: 0, color: 'var(--violet)' }} />
+            <span className="sidebar-lbl" style={{ color: 'var(--violet)' }}>Ask AI</span>
+          </motion.button>
         </nav>
 
         {/* Running badge */}
         <AnimatePresence>
           {run?.status === 'RUNNING' && (
-            <motion.div
-              style={{ margin: '0 12px 10px', padding: '11px 13px', borderRadius: 12, background: 'var(--lime-dim)', border: '1px solid var(--b-lime)', display: 'flex', alignItems: 'center', gap: 10 }}
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-            >
+            <motion.div style={{ margin: '0 12px 10px', padding: '11px 13px', borderRadius: 12, background: 'var(--lime-dim)', border: '1px solid var(--b-lime)', display: 'flex', alignItems: 'center', gap: 10 }}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
               <div className="running-dot" />
               <span className="sidebar-lbl mono text-[11px]" style={{ color: 'var(--lime)' }}>Scanning…</span>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Footer actions */}
+        {/* Footer */}
         <div style={{ padding: 12, borderTop: '1px solid var(--b0)', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <motion.button onClick={() => setDark(d => !d)} className="nav-item" whileHover={{ x: 3 }} whileTap={{ scale: 0.97 }}>
             {dark ? <Sun size={16} style={{ flexShrink: 0 }} /> : <Moon size={16} style={{ flexShrink: 0 }} />}
             <span className="sidebar-lbl text-sm">{dark ? 'Light Mode' : 'Dark Mode'}</span>
+          </motion.button>
+          <motion.button onClick={() => setShowHelp(true)} className="nav-item" whileHover={{ x: 3 }} whileTap={{ scale: 0.97 }}>
+            <Info size={16} style={{ flexShrink: 0 }} />
+            <span className="sidebar-lbl text-sm">Webhook Setup</span>
           </motion.button>
           <motion.button onClick={logout} className="nav-item" style={{ color: 'var(--red)' }} whileHover={{ x: 3 }} whileTap={{ scale: 0.97 }}>
             <LogOut size={16} style={{ flexShrink: 0 }} />
@@ -799,13 +786,9 @@ export default function App() {
       <main className="main-wrap relative z-10 flex-1">
         <AnimatePresence>
           {tabLoading && (
-            <motion.div
-              className="absolute inset-0 flex items-center justify-center"
+            <motion.div className="absolute inset-0 flex items-center justify-center"
               style={{ background: 'rgba(2,4,9,0.72)', backdropFilter: 'blur(6px)', zIndex: 60 }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="card-raised px-6 py-5 flex items-center gap-3">
                 <Loader2 size={18} className="anim-spin" style={{ color: 'var(--lime)' }} />
                 <div>
@@ -819,66 +802,50 @@ export default function App() {
 
         {/* Mobile top bar */}
         <div className="flex items-center justify-between mb-6 md:hidden">
-          <motion.button onClick={() => setMobileOpen(true)}
-            className="btn btn-ghost p-2.5 rounded-xl" whileTap={{ scale: 0.93 }}>
+          <motion.button onClick={() => setMobileOpen(true)} className="btn btn-ghost p-2.5 rounded-xl" whileTap={{ scale: 0.93 }}>
             <Menu size={18} />
           </motion.button>
           <span className="display font-bold text-lg">Fix<span style={{ color: 'var(--lime)' }}>Stack</span></span>
-          <motion.button onClick={logout} className="btn btn-ghost p-2.5 rounded-xl" whileTap={{ scale: 0.93 }}>
-            <LogOut size={18} />
+          {/* Mobile Ask AI button */}
+          <motion.button onClick={() => setShowAiModal(true)} className="btn btn-ghost p-2.5 rounded-xl"
+            style={{ color: 'var(--violet)', borderColor: 'rgba(157,120,247,0.25)' }} whileTap={{ scale: 0.93 }}>
+            <Sparkles size={18} />
           </motion.button>
         </div>
 
         <AnimatePresence mode="wait">
 
-          {/* ════════════════ DASHBOARD — HOME ════════════════ */}
+          {/* ════════ DASHBOARD — HOME ════════ */}
           {tab === 'dashboard' && !run && (
             <motion.div key="home" style={{ maxWidth: 960 }}
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-
-              {/* Hero */}
               <motion.div className="mb-12" variants={stagger} initial="hidden" animate="visible">
                 <motion.div className="flex items-center gap-2 mb-5" variants={fadeUp}>
                   <span className="tag tag-lime text-[10px]"><Sparkles size={9} />v1.0 LIVE</span>
                   <span className="tag text-[10px]">OSV.dev + NVD + Groq</span>
                 </motion.div>
-
-                <motion.h1
-                  className="display dashboard-hero-title font-extrabold leading-none tracking-tighter mb-5"
-                  style={{ fontSize: 'clamp(36px,5.5vw,58px)' }}
-                  variants={fadeUp}
-                >
-                  Autonomous<br />
-                  <span className="text-grad">Security Agent</span>
+                <motion.h1 className="display dashboard-hero-title font-extrabold leading-none tracking-tighter mb-5"
+                  style={{ fontSize: 'clamp(36px,5.5vw,58px)' }} variants={fadeUp}>
+                  Autonomous<br /><span className="text-grad">Security Agent</span>
                 </motion.h1>
-
                 <motion.p className="text-base leading-relaxed mb-8" style={{ color: 'var(--t1)', maxWidth: 520 }} variants={fadeUp}>
                   Scans repos, reasons about exploitability with AI, and ships remediation PRs — without you touching a thing.
                 </motion.p>
-
-                <motion.button
-                  onClick={() => scan(true)}
-                  disabled={loading}
-                  className="btn btn-primary"
-                  style={{ fontSize: 14, padding: '15px 28px', borderRadius: 14 }}
-                  variants={fadeUp}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                >
-                  {loading
-                    ? <><Loader2 size={16} className="anim-spin" />Starting…</>
-                    : <><Zap size={17} />Run Demo — lodash + axios CVEs</>
-                  }
-                </motion.button>
+                <motion.div className="flex gap-3 flex-wrap" variants={fadeUp}>
+                  <motion.button onClick={() => scan(true)} disabled={loading} className="btn btn-primary"
+                    style={{ fontSize: 14, padding: '15px 28px', borderRadius: 14 }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                    {loading ? <><Loader2 size={16} className="anim-spin" />Starting…</> : <><Zap size={17} />Run Demo — lodash + axios CVEs</>}
+                  </motion.button>
+                  <motion.button onClick={() => setShowAiModal(true)} className="btn btn-ghost"
+                    style={{ fontSize: 14, padding: '15px 22px', borderRadius: 14, color: 'var(--violet)', borderColor: 'rgba(157,120,247,0.3)' }}
+                    whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                    <Sparkles size={17} />Ask AI
+                  </motion.button>
+                </motion.div>
               </motion.div>
 
-              {/* Scan input cards */}
-              <motion.div
-                className="grid gap-5 mb-6"
-                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))' }}
-                variants={stagger} initial="hidden" animate="visible"
-              >
-                {/* Repo */}
+              <motion.div className="grid gap-5 mb-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))' }}
+                variants={stagger} initial="hidden" animate="visible">
                 <motion.div className="card p-7" variants={scaleIn} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 280 }}>
                   <div className="flex items-center gap-3 mb-6">
                     <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(37,99,235,0.14)', border: '1px solid rgba(37,99,235,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -889,21 +856,15 @@ export default function App() {
                       <p className="text-xs" style={{ color: 'var(--t2)' }}>Select from your repos</p>
                     </div>
                   </div>
-
                   {repos.length > 0 ? (
                     <div className="flex flex-col gap-3">
-                      <select
-                        value={selectedRepo}
+                      <select value={selectedRepo}
                         onChange={e => { const u = e.target.value; setSelectedRepo(u); if (u) { setRepoUrl(u); setErr(null); scan(false, u); } }}
-                        disabled={loading}
-                        className="input text-sm"
-                        style={{ cursor: 'pointer' }}
-                      >
+                        disabled={loading} className="input text-sm" style={{ cursor: 'pointer' }}>
                         <option value="">Choose a repository…</option>
                         {repos.map(r => <option key={r.id} value={r.html_url}>{r.full_name}{r.private ? ' 🔒' : ''}</option>)}
                       </select>
-                      <motion.button onClick={() => authWithPat(pat)} disabled={repoLoading}
-                        className="btn btn-ghost text-xs py-2.5 rounded-xl" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                      <motion.button onClick={() => authWithPat(pat)} disabled={repoLoading} className="btn btn-ghost text-xs py-2.5 rounded-xl" whileHover={{ scale: 1.01 }}>
                         <RefreshCw size={13} className={repoLoading ? 'anim-spin' : ''} />Refresh
                       </motion.button>
                     </div>
@@ -912,7 +873,6 @@ export default function App() {
                   )}
                 </motion.div>
 
-                {/* Org */}
                 <motion.div className="card p-7" variants={scaleIn} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 280 }}>
                   <div className="flex items-center gap-3 mb-6">
                     <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(157,120,247,0.14)', border: '1px solid rgba(157,120,247,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -928,14 +888,13 @@ export default function App() {
                       onChange={e => { setOrgName(e.target.value); setErr(null); }}
                       disabled={loading} className="input text-sm" />
                     <motion.button onClick={orgScan} disabled={loading || !orgName}
-                      className="btn btn-ghost text-sm py-3 rounded-xl font-semibold" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                      className="btn btn-ghost text-sm py-3 rounded-xl font-semibold" whileHover={{ scale: 1.01 }}>
                       <Play size={14} />Queue Org Scan
                     </motion.button>
                   </div>
                 </motion.div>
               </motion.div>
 
-              {/* Error */}
               <AnimatePresence>
                 {err && (
                   <motion.div className="flex items-center gap-3 text-sm p-4 rounded-2xl mb-6"
@@ -946,21 +905,20 @@ export default function App() {
                 )}
               </AnimatePresence>
 
-              {/* How it works */}
               <motion.div className="card p-7" variants={fadeUp} initial="hidden" animate="visible">
                 <p className="section-label">How it works</p>
                 <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))' }}>
                   {[
-                    { icon: Github,    label: 'Fetch Deps',   desc: 'Parses manifests',    color: '#2563EB' },
-                    { icon: Search,    label: 'CVE Scan',     desc: 'OSV.dev + NVD dual',  color: '#7C3AED' },
-                    { icon: Brain,     label: 'AI Context',   desc: 'Call graph analysis', color: '#0891B2' },
-                    { icon: ArrowRight,label: 'Auto PR',      desc: 'Merged & annotated',  color: '#059669' },
+                    { icon: Github,    label: 'Fetch Deps',  desc: 'Parses manifests',    color: '#2563EB' },
+                    { icon: Search,    label: 'CVE Scan',    desc: 'OSV.dev + NVD dual',  color: '#7C3AED' },
+                    { icon: Brain,     label: 'AI Context',  desc: 'Call graph analysis', color: '#0891B2' },
+                    { icon: ArrowRight,label: 'Auto PR',     desc: 'Merged & annotated',  color: '#059669' },
                   ].map((s, i) => (
-                    <motion.div key={s.label}
-                      className="p-5 rounded-2xl" style={{ background: 'var(--b0)', border: '1px solid var(--b0)' }}
+                    <motion.div key={s.label} className="p-5 rounded-2xl"
+                      style={{ background: 'var(--b0)', border: '1px solid var(--b0)' }}
                       whileHover={{ y: -4, borderColor: s.color + '44' }}
                       transition={{ type: 'spring', stiffness: 280 }}
-                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition2={{ delay: i * 0.07 }}>
+                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                       <div style={{ width: 32, height: 32, borderRadius: 9, background: s.color + '1a', border: `1px solid ${s.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
                         <s.icon size={14} style={{ color: s.color }} />
                       </div>
@@ -971,15 +929,12 @@ export default function App() {
                 </div>
               </motion.div>
 
-              {/* Demo file lapse */}
               <motion.div className="card p-7" variants={fadeUp} initial="hidden" animate="visible">
                 <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
                   <p className="section-label mb-0">Demo file stream</p>
                   {demoStreaming && <span className="tag tag-teal text-[10px]"><Loader2 size={10} className="anim-spin" />Streaming</span>}
                 </div>
-                <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>
-                  Demo reveals files with a randomized 0.5-1.2s interval between entries.
-                </p>
+                <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>Demo reveals files with a randomized 0.5-1.2s interval.</p>
                 <div className="grid gap-2">
                   {demoFilesShown.length === 0 ? (
                     <div className="p-3 rounded-xl text-xs" style={{ background: 'var(--b0)', border: '1px solid var(--b1)', color: 'var(--t2)' }}>
@@ -987,14 +942,9 @@ export default function App() {
                     </div>
                   ) : (
                     demoFilesShown.map((file, idx) => (
-                      <motion.div
-                        key={file}
-                        className="p-3 rounded-xl flex items-center justify-between"
+                      <motion.div key={file} className="p-3 rounded-xl flex items-center justify-between"
                         style={{ background: 'var(--b0)', border: '1px solid var(--b1)' }}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.04 }}
-                      >
+                        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}>
                         <span className="mono text-xs" style={{ color: 'var(--t1)' }}>{file}</span>
                         <span className="tag text-[10px]">loaded</span>
                       </motion.div>
@@ -1003,42 +953,18 @@ export default function App() {
                 </div>
               </motion.div>
 
-              {/* More interactive sections */}
               <motion.div className="card p-7" variants={fadeUp} initial="hidden" animate="visible">
                 <p className="section-label">Explore FixStack</p>
                 <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
                   {[
-                    {
-                      title: 'About',
-                      text: 'FixStack coordinates agents that discover vulnerable dependencies and propose safe upgrades.',
-                      image: makeInlineImage('About', '#2563EB', '#0EA5E9'),
-                    },
-                    {
-                      title: 'Description',
-                      text: 'Every run combines CVE intelligence, contextual AI reasoning, and remediation planning.',
-                      image: makeInlineImage('Description', '#8B5CF6', '#14B8A6'),
-                    },
-                    {
-                      title: 'Contact',
-                      text: 'Need onboarding help? Configure webhook + alert email in Settings and monitor every scan.',
-                      image: makeInlineImage('Contact', '#059669', '#84CC16'),
-                    },
+                    { title: 'About', text: 'FixStack coordinates agents that discover vulnerable dependencies and propose safe upgrades.', image: makeInlineImage('About', '#2563EB', '#0EA5E9') },
+                    { title: 'Description', text: 'Every run combines CVE intelligence, contextual AI reasoning, and remediation planning.', image: makeInlineImage('Description', '#8B5CF6', '#14B8A6') },
+                    { title: 'Contact', text: 'Configure webhook + alert email in Settings and monitor every scan.', image: makeInlineImage('Contact', '#059669', '#84CC16') },
                   ].map((card, i) => (
-                    <motion.div
-                      key={card.title}
-                      className="rounded-2xl overflow-hidden"
+                    <motion.div key={card.title} className="rounded-2xl overflow-hidden"
                       style={{ background: 'var(--b0)', border: '1px solid var(--b1)' }}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.06 }}
-                      whileHover={{ y: -3 }}
-                    >
-                      <img
-                        src={card.image}
-                        alt={card.title}
-                        style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }}
-                        loading="lazy"
-                      />
+                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} whileHover={{ y: -3 }}>
+                      <img src={card.image} alt={card.title} style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }} loading="lazy" />
                       <div className="p-4">
                         <p className="font-semibold text-sm mb-1">{card.title}</p>
                         <p className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>{card.text}</p>
@@ -1047,68 +973,12 @@ export default function App() {
                   ))}
                 </div>
               </motion.div>
-
-              {/* Mini AI command assistant */}
-              <motion.div className="card p-7" variants={fadeUp} initial="hidden" animate="visible">
-                <p className="section-label">AI Command Assistant</p>
-                <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>
-                  Ask what you need; assistant returns command details and a direct action answer.
-                </p>
-                <div className="flex gap-3 flex-wrap mb-4">
-                  {AI_COMMANDS.map(c => (
-                    <button
-                      key={c.command}
-                      onClick={() => { setAiPrompt(c.command); runAiAssistant(c.command); }}
-                      className="tag text-[10px]"
-                      style={{ cursor: 'pointer' }}
-                    >
-                      {c.command}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-3 flex-wrap">
-                  <input
-                    className="input text-sm"
-                    value={aiPrompt}
-                    onChange={e => setAiPrompt(e.target.value)}
-                    placeholder='Try "run demo" or "schedule scan"'
-                    style={{ flex: 1, minWidth: 240 }}
-                  />
-                  <motion.button
-                    onClick={() => runAiAssistant(aiPrompt)}
-                    className="btn btn-primary text-sm"
-                    style={{ borderRadius: 11 }}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <Sparkles size={14} />Ask AI
-                  </motion.button>
-                </div>
-                <AnimatePresence>
-                  {aiResult && (
-                    <motion.div
-                      className="mt-4 p-4 rounded-2xl"
-                      style={{ background: 'var(--b0)', border: '1px solid var(--b1)' }}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 6 }}
-                    >
-                      <p className="text-xs mb-2"><span className="section-label" style={{ marginBottom: 0 }}>command</span> <span className="mono" style={{ color: 'var(--lime)' }}>{aiResult.command}</span></p>
-                      <p className="text-xs mb-2" style={{ color: 'var(--t1)' }}>{aiResult.details}</p>
-                      <p className="text-sm font-medium" style={{ color: 'var(--t0)' }}>{aiResult.answer}</p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
             </motion.div>
           )}
 
-          {/* ════════════════ DASHBOARD — RUN ════════════════ */}
+          {/* ════════ DASHBOARD — RUN ════════ */}
           {tab === 'dashboard' && run && (
-            <motion.div key="run" style={{ maxWidth: 960 }}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-
-              {/* Sticky run header */}
+            <motion.div key="run" style={{ maxWidth: 960 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <motion.div className="card-raised p-6 mb-7" style={{ position: 'sticky', top: 0, zIndex: 20 }}
                 initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}>
                 <div className="flex items-center justify-between flex-wrap gap-4 mb-5">
@@ -1126,17 +996,12 @@ export default function App() {
                       </div>
                     ))}
                   </div>
-                  <motion.span
-                    className={`tag text-[11px] px-4 py-1.5 ${run.status === 'COMPLETED' ? 'tag-lime' : run.status === 'FAILED' ? 'tag-red' : 'tag-teal'}`}
-                    animate={run.status === 'RUNNING' ? { scale: [1, 1.03, 1] } : {}}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  >
+                  <motion.span className={`tag text-[11px] px-4 py-1.5 ${run.status === 'COMPLETED' ? 'tag-lime' : run.status === 'FAILED' ? 'tag-red' : 'tag-teal'}`}
+                    animate={run.status === 'RUNNING' ? { scale: [1, 1.03, 1] } : {}} transition={{ duration: 1.5, repeat: Infinity }}>
                     {run.status === 'RUNNING' && <span className="running-dot mr-2" style={{ width: 6, height: 6 }} />}
                     {run.status}
                   </motion.span>
                 </div>
-
-                {/* Step pills */}
                 <div className="flex gap-2">
                   {STEPS.map((s, i) => {
                     const cur = getStep();
@@ -1152,28 +1017,20 @@ export default function App() {
                 </div>
               </motion.div>
 
-              {/* Timeline */}
-              <motion.div className="card p-7 mb-7"
-                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+              <motion.div className="card p-7 mb-7" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
                 <p className="flex items-center gap-3 font-bold text-base mb-7 display" style={{ color: 'var(--t0)' }}>
                   <Activity size={17} style={{ color: 'var(--lime)' }} />Live Agent Timeline
                   {run.status === 'RUNNING' && <span className="running-dot ml-1" />}
                 </p>
-
                 <div className="relative pl-7">
-                  {/* Vertical line */}
                   {events.length > 0 && (
-                    <motion.div
-                      style={{ position: 'absolute', left: 19, top: 4, bottom: 20, width: 1.5, background: 'linear-gradient(to bottom, var(--lime), var(--lime-glow), transparent)', borderRadius: 2 }}
-                      initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ duration: 0.6 }}
-                    />
+                    <motion.div style={{ position: 'absolute', left: 19, top: 4, bottom: 20, width: 1.5, background: 'linear-gradient(to bottom, var(--lime), var(--lime-glow), transparent)', borderRadius: 2 }}
+                      initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ duration: 0.6 }} />
                   )}
-
                   {events.length === 0
                     ? [1,2,3].map(i => <div key={i} className="skeleton mb-4" style={{ height: 72 }} />)
                     : events.map((ev, idx) => <EventRow key={ev.id} ev={ev} run={run} i={idx} />)
                   }
-
                   {run.status === 'RUNNING' && (
                     <motion.div className="flex items-center gap-4 mt-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                       <div style={{ width: 40, height: 40, borderRadius: 11, border: '1px solid var(--b1)', background: 'var(--ink-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1185,12 +1042,8 @@ export default function App() {
                 </div>
               </motion.div>
 
-              {/* ── RESULTS ── */}
               {run.status === 'COMPLETED' && (
-                <motion.div className="flex flex-col gap-6"
-                  variants={stagger} initial="hidden" animate="visible">
-
-                  {/* Stats + donut */}
+                <motion.div className="flex flex-col gap-6" variants={stagger} initial="hidden" animate="visible">
                   <motion.div className="card p-8" variants={fadeUp}>
                     <p className="section-label mb-6">Vulnerability Overview</p>
                     <div className="flex flex-wrap items-start gap-10 justify-between">
@@ -1208,9 +1061,7 @@ export default function App() {
                           { val: dur, lbl: 'Seconds', color: 'var(--blue)', cls: 'text-grad-cool' },
                         ].map(s => (
                           <motion.div key={s.lbl} className="stat-card" variants={scaleIn}>
-                            <div className={`stat-val ${s.cls}`} style={!s.cls ? { color: s.color } : {}}>
-                              <Num val={s.val} />
-                            </div>
+                            <div className={`stat-val ${s.cls}`} style={!s.cls ? { color: s.color } : {}}><Num val={s.val} /></div>
                             <div className="stat-lbl">{s.lbl}</div>
                           </motion.div>
                         ))}
@@ -1218,7 +1069,6 @@ export default function App() {
                     </div>
                   </motion.div>
 
-                  {/* Vulns table */}
                   {run.vulnerabilities.length > 0 && (
                     <motion.div className="card overflow-hidden" variants={fadeUp}>
                       <div className="flex items-center gap-3 px-6 py-5 border-b" style={{ borderColor: 'var(--b1)' }}>
@@ -1228,9 +1078,7 @@ export default function App() {
                       </div>
                       <div className="overflow-x-auto">
                         <table className="data-table">
-                          <thead>
-                            <tr><th>Package</th><th>Severity</th><th>AI Context</th><th>Description</th></tr>
-                          </thead>
+                          <thead><tr><th>Package</th><th>Severity</th><th>AI Context</th><th>Description</th></tr></thead>
                           <tbody>
                             {run.vulnerabilities.map((v: any, i: number) => (
                               <React.Fragment key={v.id}>
@@ -1246,9 +1094,7 @@ export default function App() {
                                     </span>
                                   </td>
                                   <td>
-                                    {v.contextNote
-                                      ? <span className="tag tag-violet text-[10px] gap-1.5"><Brain size={10} />AI</span>
-                                      : <span style={{ color: 'var(--t3)' }}>—</span>}
+                                    {v.contextNote ? <span className="tag tag-violet text-[10px] gap-1.5"><Brain size={10} />AI</span> : <span style={{ color: 'var(--t3)' }}>—</span>}
                                   </td>
                                   <td style={{ maxWidth: 280 }}>
                                     <p className="text-xs truncate" style={{ color: 'var(--t1)' }}>{v.description}</p>
@@ -1257,8 +1103,7 @@ export default function App() {
                                 </motion.tr>
                                 <AnimatePresence>
                                   {expanded[v.id] && (
-                                    <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                      style={{ background: 'var(--ink-2)' }}>
+                                    <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ background: 'var(--ink-2)' }}>
                                       <td colSpan={4} style={{ padding: '20px 24px' }}>
                                         <div className="flex flex-col gap-3">
                                           <p className="text-sm leading-relaxed" style={{ color: 'var(--t1)' }}>{v.description}</p>
@@ -1287,7 +1132,6 @@ export default function App() {
                     </motion.div>
                   )}
 
-                  {/* Remediations */}
                   {run.remediations.length > 0 && (
                     <motion.div className="card overflow-hidden" variants={fadeUp}>
                       <div className="flex items-center gap-3 px-6 py-5 border-b" style={{ borderColor: 'var(--b1)' }}>
@@ -1313,8 +1157,7 @@ export default function App() {
                                     {Array.from({ length: Math.max(1, r.attempts || 1) }).map((_, idx) => (
                                       <motion.div key={idx}
                                         style={{ width: 9, height: 9, borderRadius: '50%', background: r.status === 'FIXED' && idx === (r.attempts || 1) - 1 ? 'var(--lime)' : 'var(--red)', boxShadow: r.status === 'FIXED' && idx === (r.attempts || 1) - 1 ? '0 0 8px var(--lime-glow)' : 'none' }}
-                                        initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: idx * 0.08 }}
-                                      />
+                                        initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: idx * 0.08 }} />
                                     ))}
                                     {(r.attempts || 0) > 1 && r.status === 'FIXED' && (
                                       <span className="tag tag-amber text-[10px] ml-1">Self-Corrected</span>
@@ -1336,7 +1179,6 @@ export default function App() {
                 </motion.div>
               )}
 
-              {/* Failed */}
               {run.status === 'FAILED' && (
                 <motion.div className="text-center p-16 rounded-2xl"
                   style={{ background: 'var(--red-bg)', border: '1px solid rgba(255,58,92,0.2)' }}
@@ -1347,24 +1189,19 @@ export default function App() {
                 </motion.div>
               )}
 
-              {/* Reset */}
               <div className="text-center pt-10 pb-14">
                 <motion.button onClick={() => { setRun(null); setRepoUrl(''); setSelectedRepo(''); }}
-                  className="btn btn-ghost" style={{ borderRadius: 12 }}
-                  whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                  className="btn btn-ghost" style={{ borderRadius: 12 }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                   <RefreshCw size={14} />New Scan
                 </motion.button>
               </div>
             </motion.div>
           )}
 
-          {/* ════════════════ HISTORY ════════════════ */}
+          {/* ════════ HISTORY ════════ */}
           {tab === 'history' && (
-            <motion.div key="history" style={{ maxWidth: 960 }}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-
-              <motion.div className="flex items-end justify-between flex-wrap gap-4 mb-8"
-                variants={stagger} initial="hidden" animate="visible">
+            <motion.div key="history" style={{ maxWidth: 960 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <motion.div className="flex items-end justify-between flex-wrap gap-4 mb-8" variants={stagger} initial="hidden" animate="visible">
                 <motion.div variants={fadeUp}>
                   <h2 className="display font-extrabold tracking-tight mb-1" style={{ fontSize: 28, letterSpacing: '-0.025em' }}>Scan History</h2>
                   <p className="text-sm" style={{ color: 'var(--t2)' }}>{history.length} runs recorded</p>
@@ -1376,27 +1213,23 @@ export default function App() {
                       className="input text-sm" style={{ paddingLeft: 36, width: 220 }} />
                   </div>
                   <motion.button onClick={() => { if (confirm('Clear all?')) { setHistory([]); toast('Cleared', 'info'); } }}
-                    className="btn btn-ghost text-xs" style={{ borderRadius: 11 }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+                    className="btn btn-ghost text-xs" style={{ borderRadius: 11 }} whileHover={{ scale: 1.02 }}>
                     <Trash2 size={13} />Clear All
                   </motion.button>
                 </motion.div>
               </motion.div>
-
               <div className="flex flex-col gap-3">
                 {history.filter(s => (s.repo || '').toLowerCase().includes(search.toLowerCase())).length === 0 ? (
-                  <motion.div className="text-center p-20 rounded-2xl" style={{ border: '1px dashed var(--b1)' }}
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <motion.div className="text-center p-20 rounded-2xl" style={{ border: '1px dashed var(--b1)' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <History size={44} style={{ color: 'var(--t3)', margin: '0 auto 16px' }} />
                     <p style={{ color: 'var(--t2)' }}>No scans yet. Run your first scan.</p>
                   </motion.div>
                 ) : (
                   history.filter(s => (s.repo || '').toLowerCase().includes(search.toLowerCase())).map((s: any, i: number) => (
                     <motion.div key={s.id} className="card flex items-center justify-between gap-5 p-5"
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => loadRun(s.runId)}
+                      style={{ cursor: 'pointer' }} onClick={() => loadRun(s.runId)}
                       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-                      whileHover={{ x: 4, borderColor: 'var(--b2)' }}
-                    >
+                      whileHover={{ x: 4, borderColor: 'var(--b2)' }}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <Github size={13} style={{ color: 'var(--t2)', flexShrink: 0 }} />
@@ -1429,23 +1262,18 @@ export default function App() {
             </motion.div>
           )}
 
-          {/* ════════════════ SCHEDULES ════════════════ */}
+          {/* ════════ SCHEDULES ════════ */}
           {tab === 'schedules' && (
-            <motion.div key="schedules" style={{ maxWidth: 960 }}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-
+            <motion.div key="schedules" style={{ maxWidth: 960 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
                 <div>
                   <h2 className="display font-extrabold tracking-tight mb-1" style={{ fontSize: 28, letterSpacing: '-0.025em' }}>Scheduled Scans</h2>
                   <p className="text-sm" style={{ color: 'var(--t2)' }}>Automated cron-based scanning</p>
                 </div>
-                <motion.button onClick={() => setShowSchModal(true)} className="btn btn-primary text-sm"
-                  style={{ borderRadius: 12 }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                <motion.button onClick={() => setShowSchModal(true)} className="btn btn-primary text-sm" style={{ borderRadius: 12 }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                   <Calendar size={15} />Add Schedule
                 </motion.button>
               </div>
-
-              {/* Schedule modal */}
               <AnimatePresence>
                 {showSchModal && (
                   <motion.div className="fixed inset-0 flex items-center justify-center p-6 z-50"
@@ -1487,7 +1315,6 @@ export default function App() {
                   </motion.div>
                 )}
               </AnimatePresence>
-
               {schedules.length === 0 ? (
                 <div className="text-center p-20 rounded-2xl" style={{ border: '1px dashed var(--b1)' }}>
                   <Calendar size={44} style={{ color: 'var(--t3)', margin: '0 auto 16px' }} />
@@ -1520,35 +1347,25 @@ export default function App() {
             </motion.div>
           )}
 
-          {/* ════════════════ SETTINGS ════════════════ */}
+          {/* ════════ SETTINGS ════════ */}
           {tab === 'settings' && (
-            <motion.div key="settings" style={{ maxWidth: 660 }}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-
+            <motion.div key="settings" style={{ maxWidth: 660 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="mb-8">
                 <h2 className="display font-extrabold tracking-tight mb-1" style={{ fontSize: 28, letterSpacing: '-0.025em' }}>Settings</h2>
                 <p className="text-sm" style={{ color: 'var(--t2)' }}>Tokens, keys, and integrations</p>
               </div>
-
               <form onSubmit={async e => { e.preventDefault(); try { await fixstackApi.saveSettings(settings.webhookUrl, settings.email, settings.githubToken, settings.groqApiKey, settings.webhookSecret); toast('Saved', 'success'); } catch { toast('Failed to save', 'error'); } }}
                 className="flex flex-col gap-4">
-
                 {[
                   { key: 'githubToken', label: 'GitHub Token', icon: <Github size={13} />, show: showGhTok, setShow: setShowGhTok, ph: 'ghp_xxxxxxxxxxxxxxxxxxxx', mono: true },
                   { key: 'groqApiKey',  label: 'Groq API Key',  icon: <Brain size={13} />,  show: showGroq,  setShow: setShowGroq,  ph: 'gsk_xxxxxxxxxxxxxxxxxxxx', mono: true },
                   { key: 'webhookSecret', label: 'Webhook Secret', icon: <Lock size={13} />, show: showWhSec, setShow: setShowWhSec, ph: 'Optional HMAC secret' },
                 ].map(f => (
-                  <motion.div key={f.key} className="card p-6"
-                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                  <motion.div key={f.key} className="card p-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                     <label className="section-label flex items-center gap-2">{f.icon}{f.label}</label>
                     <div className="relative">
-                      <input type={f.show ? 'text' : 'password'}
-                        value={(settings as any)[f.key] || ''}
-                        onChange={e => setSettings({ ...settings, [f.key]: e.target.value })}
-                        className={`input ${f.mono ? 'input-mono' : ''}`}
-                        style={{ paddingRight: 48 }}
-                        placeholder={f.ph}
-                      />
+                      <input type={f.show ? 'text' : 'password'} value={(settings as any)[f.key] || ''} onChange={e => setSettings({ ...settings, [f.key]: e.target.value })}
+                        className={`input ${f.mono ? 'input-mono' : ''}`} style={{ paddingRight: 48 }} placeholder={f.ph} />
                       <button type="button" onClick={() => f.setShow((v: boolean) => !v)}
                         className="absolute" style={{ right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--t2)', cursor: 'pointer' }}>
                         {f.show ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -1556,22 +1373,16 @@ export default function App() {
                     </div>
                   </motion.div>
                 ))}
-
-                {/* Webhook URL */}
                 <motion.div className="card p-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                   <label className="section-label flex items-center gap-2"><Bell size={13} />Webhook URL</label>
                   <input type="url" value={settings.webhookUrl || ''} onChange={e => setSettings({ ...settings, webhookUrl: e.target.value })}
                     className="input text-sm" placeholder="https://hooks.slack.com/…" />
                 </motion.div>
-
-                {/* Email */}
                 <motion.div className="card p-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                   <label className="section-label">Email Alerts</label>
                   <input type="email" value={settings.email || ''} onChange={e => setSettings({ ...settings, email: e.target.value })}
                     className="input text-sm" placeholder="security@company.com" />
                 </motion.div>
-
-                {/* Webhook endpoint */}
                 <motion.div className="card-lime p-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                   <label className="section-label flex items-center gap-2" style={{ color: 'var(--lime)' }}><Terminal size={13} />GitHub App Webhook URL</label>
                   <div className="flex gap-3">
@@ -1600,21 +1411,7 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* ─── Help FAB ──────────────────────────────── */}
-      <motion.button
-        onClick={() => setShowHelp(true)}
-        className="btn btn-primary"
-        style={{ position: 'fixed', bottom: 28, right: 28, width: 50, height: 50, borderRadius: '50%', padding: 0, fontSize: 20, fontWeight: 800, zIndex: 30 }}
-        whileHover={{ scale: 1.12 }}
-        whileTap={{ scale: 0.93 }}
-        initial={{ opacity: 0, scale: 0 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.6, type: 'spring', stiffness: 280 }}
-      >
-        ?
-      </motion.button>
-
-      {/* ─── Help modal ────────────────────────────── */}
+      {/* ─── Help modal ── */}
       <AnimatePresence>
         {showHelp && (
           <motion.div className="fixed inset-0 flex items-center justify-center p-6 z-50"
@@ -1649,15 +1446,12 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* ─── Toasts ────────────────────────────────── */}
+      {/* ─── Toasts ── */}
       <div style={{ position: 'fixed', top: 24, right: 24, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 10, pointerEvents: 'none' }}>
         <AnimatePresence>
           {toasts.map(t => (
-            <motion.div key={t.id} className={`toast toast-${t.type}`}
-              style={{ pointerEvents: 'auto' }}
-              initial={{ opacity: 0, x: 40, scale: 0.9 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 40, scale: 0.9 }}
+            <motion.div key={t.id} className={`toast toast-${t.type}`} style={{ pointerEvents: 'auto' }}
+              initial={{ opacity: 0, x: 40, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 40, scale: 0.9 }}
               transition={{ type: 'spring', stiffness: 280, damping: 24 }}>
               {t.type === 'success' ? <CheckCircle2 size={14} /> : t.type === 'error' ? <AlertCircle size={14} /> : <Info size={14} />}
               {t.msg}
