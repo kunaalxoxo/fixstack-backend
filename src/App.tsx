@@ -627,7 +627,7 @@ export default function App() {
             </h1>
             <p className="mt-3 text-sm" style={{ color: 'var(--t1)' }}>Autonomous dependency security agent</p>
           </motion.div>
-          <motion.div className="card-raised border-grad relative p-9"
+          <motion.div className="card-raised border-grad relative p-8"
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.5 }}>
             <p className="section-label mb-6">Connect GitHub</p>
             <form onSubmit={handleLogin} className="flex flex-col gap-4">
@@ -819,16 +819,16 @@ export default function App() {
           {tab === 'dashboard' && !run && (
             <motion.div key="home" style={{ maxWidth: 960 }}
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <motion.div className="mb-12" variants={stagger} initial="hidden" animate="visible">
+              <motion.div className="mb-10" variants={stagger} initial="hidden" animate="visible">
                 <motion.div className="flex items-center gap-2 mb-5" variants={fadeUp}>
                   <span className="tag tag-lime text-[10px]"><Sparkles size={9} />v1.0 LIVE</span>
                   <span className="tag text-[10px]">OSV.dev + NVD + Groq</span>
                 </motion.div>
-                <motion.h1 className="display dashboard-hero-title font-extrabold leading-none tracking-tighter mb-5"
+                <motion.h1 className="dashboard-hero-title font-extrabold mb-5"
                   style={{ fontSize: 'clamp(36px,5.5vw,58px)' }} variants={fadeUp}>
                   Autonomous<br /><span className="text-grad">Security Agent</span>
                 </motion.h1>
-                <motion.p className="text-base leading-relaxed mb-8" style={{ color: 'var(--t1)', maxWidth: 520 }} variants={fadeUp}>
+                <motion.p className="text-base leading-relaxed mb-7" style={{ color: 'var(--t1)', maxWidth: 560 }} variants={fadeUp}>
                   Scans repos, reasons about exploitability with AI, and ships remediation PRs — without you touching a thing.
                 </motion.p>
                 <motion.div className="flex gap-3 flex-wrap" variants={fadeUp}>
@@ -846,7 +846,7 @@ export default function App() {
 
               <motion.div className="grid gap-5 mb-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))' }}
                 variants={stagger} initial="hidden" animate="visible">
-                <motion.div className="card p-7" variants={scaleIn} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 280 }}>
+                <motion.div className="card p-6" variants={scaleIn} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 280 }}>
                   <div className="flex items-center gap-3 mb-6">
                     <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(37,99,235,0.14)', border: '1px solid rgba(37,99,235,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Github size={15} style={{ color: '#3b82f6' }} />
@@ -873,7 +873,7 @@ export default function App() {
                   )}
                 </motion.div>
 
-                <motion.div className="card p-7" variants={scaleIn} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 280 }}>
+                <motion.div className="card p-6" variants={scaleIn} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 280 }}>
                   <div className="flex items-center gap-3 mb-6">
                     <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(157,120,247,0.14)', border: '1px solid rgba(157,120,247,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Building size={15} style={{ color: 'var(--violet)' }} />
@@ -905,7 +905,7 @@ export default function App() {
                 )}
               </AnimatePresence>
 
-              <motion.div className="card p-7" variants={fadeUp} initial="hidden" animate="visible">
+              <motion.div className="card p-6" variants={fadeUp} initial="hidden" animate="visible">
                 <p className="section-label">How it works</p>
                 <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))' }}>
                   {[
@@ -929,7 +929,7 @@ export default function App() {
                 </div>
               </motion.div>
 
-              <motion.div className="card p-7" variants={fadeUp} initial="hidden" animate="visible">
+              <motion.div className="card p-6" variants={fadeUp} initial="hidden" animate="visible">
                 <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
                   <p className="section-label mb-0">Demo file stream</p>
                   {demoStreaming && <span className="tag tag-teal text-[10px]"><Loader2 size={10} className="anim-spin" />Streaming</span>}
@@ -953,7 +953,7 @@ export default function App() {
                 </div>
               </motion.div>
 
-              <motion.div className="card p-7" variants={fadeUp} initial="hidden" animate="visible">
+              <motion.div className="card p-6" variants={fadeUp} initial="hidden" animate="visible">
                 <p className="section-label">Explore FixStack</p>
                 <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
                   {[
@@ -1017,7 +1017,7 @@ export default function App() {
                 </div>
               </motion.div>
 
-              <motion.div className="card p-7 mb-7" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+              <motion.div className="card p-6 mb-7" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
                 <p className="flex items-center gap-3 font-bold text-base mb-7 display" style={{ color: 'var(--t0)' }}>
                   <Activity size={17} style={{ color: 'var(--lime)' }} />Live Agent Timeline
                   {run.status === 'RUNNING' && <span className="running-dot ml-1" />}
@@ -1044,7 +1044,7 @@ export default function App() {
 
               {run.status === 'COMPLETED' && (
                 <motion.div className="flex flex-col gap-6" variants={stagger} initial="hidden" animate="visible">
-                  <motion.div className="card p-8" variants={fadeUp}>
+                  <motion.div className="card p-6 sm:p-7" variants={fadeUp}>
                     <p className="section-label mb-6">Vulnerability Overview</p>
                     <div className="flex flex-wrap items-start gap-10 justify-between">
                       <Donut
@@ -1071,7 +1071,7 @@ export default function App() {
 
                   {run.vulnerabilities.length > 0 && (
                     <motion.div className="card overflow-hidden" variants={fadeUp}>
-                      <div className="flex items-center gap-3 px-6 py-5 border-b" style={{ borderColor: 'var(--b1)' }}>
+                      <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: 'var(--b1)' }}>
                         <Shield size={16} style={{ color: 'var(--red)' }} />
                         <span className="display font-bold text-sm">Vulnerabilities Discovered</span>
                         <span className="tag text-[10px] ml-auto">{run.vulnerabilities.length}</span>
@@ -1134,7 +1134,7 @@ export default function App() {
 
                   {run.remediations.length > 0 && (
                     <motion.div className="card overflow-hidden" variants={fadeUp}>
-                      <div className="flex items-center gap-3 px-6 py-5 border-b" style={{ borderColor: 'var(--b1)' }}>
+                      <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: 'var(--b1)' }}>
                         <RefreshCw size={16} style={{ color: 'var(--lime)' }} />
                         <span className="display font-bold text-sm">Remediations Applied</span>
                       </div>
